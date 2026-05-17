@@ -48,7 +48,10 @@ typedef uintptr_t mvalue;
 #define M_TAG_IMM ((mvalue)0x2U)
 #define M_TAG_SYM ((mvalue)0x3U)
 
-#define M_TAG_OF(v) ((v)&M_TAG_MASK)
+/* v14 wants ((v)&M_TAG_MASK), v18+ wants ((v) & M_TAG_MASK); we go with v18+. */
+/* clang-format off */
+#define M_TAG_OF(v) ((v) & M_TAG_MASK)
+/* clang-format on */
 #define M_PAYLOAD(v) ((v) >> 3)
 
 /* -- Immediates: identified by their id in the high bits. ------------------ */

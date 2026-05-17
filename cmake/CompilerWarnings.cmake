@@ -65,6 +65,15 @@ function(microlisp_apply_warnings target)
 
     target_compile_options(${target} PRIVATE ${_warnings})
 
+    # MinGW (when CMake autopicks `cc.exe` on Windows + Ninja generator):
+    # the default printf path uses MSVCRT, where %zu is non-standard and
+    # GCC's -Wformat=2 rejects it. __USE_MINGW_ANSI_STDIO=1 switches the
+    # headers into ANSI-conforming mode where %zu/%lld behave like glibc,
+    # which is what the rest of the code already assumes.
+    if(MINGW)
+        target_compile_definitions(${target} PRIVATE __USE_MINGW_ANSI_STDIO=1)
+    endif()
+
     # -- Hardening flags below. Skipped on MSVC entirely; MSVC's own
     # -- mitigations (/GS, /guard:cf, ASLR via /DYNAMICBASE) are on by default.
     if(MSVC)

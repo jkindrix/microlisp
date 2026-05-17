@@ -27,7 +27,7 @@ C-stack space.
 
 - **A reader** that turns Scheme source into S-expressions. Handles
   proper and dotted-pair lists, the `'expr` quote shorthand, string
-  literals with the usual escapes (`\n \t \r \" \\ \0 \xHH`), and `;`
+  literals with the usual newline / tab / quote / hex-byte escapes, and `;`
   line comments. Configurable nesting-depth limit to bound stack use
   on hostile input.
 - **A trampolined evaluator** with proper tail-call optimization,
@@ -221,7 +221,7 @@ trying to be R5RS, R6RS, or R7RS. Specifically, the following are
 out of scope for v0.1 and may land in a future minor release:
 
 - Floats, rationals, complex numbers (integers are 60-bit signed).
-- Characters (`#\x`), vectors (`#(...)`), bytevectors.
+- Characters (Scheme's `#\\name` literal syntax), vectors (`#(...)`), bytevectors.
 - Macros (`define-syntax`, `syntax-rules`, hygienic anything).
 - Continuations (`call/cc`, `dynamic-wind`).
 - Tail-position guarantees beyond what R5RS requires.
