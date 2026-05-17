@@ -33,8 +33,8 @@ review, all landed.
   one past the documented 60-bit range. The result is now an explicit
   `MICROLISP_ERR_OVERFLOW` rather than a wrong-but-tagged value.
 - **A lone `'` at end-of-input rejects cleanly.** `microlisp -e "'"`
-  previously printed `#<eof>` because the reader silently accepted
-  `MV_EOF` from the inner `read_form`. It now returns
+  previously printed the EOF sentinel because the reader silently
+  accepted `MV_EOF` from the inner `read_form`. It now returns
   `MICROLISP_ERR_READ_TRUNCATED` with a position-aware diagnostic.
 - **`(let ((x 1 2)) x)` errors instead of silently returning 1.**
   The binding validator only checked that the binding had two cells;
