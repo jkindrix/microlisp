@@ -47,7 +47,15 @@
 
 /* -- MICROLISP_PRINTF: type-check printf-style args ------------------------- */
 #if defined(__GNUC__) || defined(__clang__)
+/* On MinGW the `printf` archetype maps to MSVCRT's printf, which doesn't
+ * support %zu / %lld and friends. We use gnu_printf there so the format
+ * checker matches the ANSI-stdio path the library actually links against. */
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#define MICROLISP_PRINTF(fmt_idx, vararg_idx)                                                      \
+    __attribute__((format(gnu_printf, fmt_idx, vararg_idx)))
+#else
 #define MICROLISP_PRINTF(fmt_idx, vararg_idx) __attribute__((format(printf, fmt_idx, vararg_idx)))
+#endif
 #else
 #define MICROLISP_PRINTF(fmt_idx, vararg_idx)
 #endif

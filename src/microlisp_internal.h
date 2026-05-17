@@ -114,7 +114,7 @@ static inline mvalue ml_make_bool(int b) {
     return b ? MV_TRUE : MV_FALSE;
 }
 static inline mvalue ml_make_sym(uint32_t idx) {
-    return (mvalue)(((mvalue)idx << 3) | M_TAG_SYM);
+    return ((mvalue)idx << 3) | M_TAG_SYM;
 }
 static inline uint32_t ml_sym_index(mvalue v) {
     return (uint32_t)(v >> 3);

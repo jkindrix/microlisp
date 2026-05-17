@@ -54,6 +54,7 @@ void ml_set_error(ml_state *s, size_t line, size_t column, const char *fmt, ...)
     s->last_error.column = column;
     va_list ap;
     va_start(ap, fmt);
+    /* NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized) - va_start above. */
     int written = vsnprintf(s->last_error.message, sizeof s->last_error.message, fmt, ap);
     va_end(ap);
     if (written < 0) {
@@ -70,7 +71,8 @@ const char *microlisp_state_error(const microlisp_state *state) {
 
 void microlisp_state_error_position(const microlisp_state *state, size_t *out_line,
                                     size_t *out_column) {
-    size_t line = 0, column = 0;
+    size_t line = 0;
+    size_t column = 0;
     if (state != NULL) {
         line = state->last_error.line;
         column = state->last_error.column;

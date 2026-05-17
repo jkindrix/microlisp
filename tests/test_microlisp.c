@@ -525,6 +525,7 @@ TEST(status_string_for_every_code) {
 }
 
 TEST(unknown_status_yields_named_fallback) {
+    /* NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange) - by design. */
     CHECK(strcmp(microlisp_status_string((microlisp_status)9999), "MICROLISP_ERR_UNKNOWN") == 0);
 }
 

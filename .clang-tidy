@@ -16,7 +16,12 @@ Checks: >
   -cert-err33-c,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   -misc-include-cleaner,
-  -misc-no-recursion
+  -misc-no-recursion,
+  -performance-no-int-to-ptr,
+  -readability-avoid-nested-conditional-operator,
+  -readability-function-cognitive-complexity,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-branch-clone
 
 # Disabled checks, with rationale:
 #
@@ -51,6 +56,38 @@ Checks: >
 #     inputs -- is addressed by the reader's depth limit (default 256)
 #     and the evaluator's trampolined main loop (TCO eliminates the
 #     common recursive case).
+#
+#   performance-no-int-to-ptr:
+#     Fundamentally incompatible with the tagged-pointer value
+#     representation: every heap-object accessor casts a mvalue
+#     (a uintptr_t) back to a typed pointer. The check exists to
+#     spot pessimization opportunities that don't apply to a value
+#     model where the integer *is* the pointer (low-bit-tagged).
+#
+#   readability-avoid-nested-conditional-operator:
+#     The eval / primitives modules use compact `cond ? a : b` chains
+#     where the alternative is multi-line if/else that buries the
+#     control structure. Mitigation: every nested ternary is short
+#     (two levels max) and is exercised by tests.
+#
+#   readability-function-cognitive-complexity:
+#     The evaluator's main loop and reader's list reader are
+#     deliberately structured as single dispatching functions because
+#     the alternative -- one function per special form -- spreads
+#     the trampoline / protect-stack discipline across the codebase
+#     and obscures it. Threshold 30 is hostile to the shape; the
+#     functions are unit-tested end-to-end.
+#
+#   bugprone-assignment-in-if-condition:
+#     The status-propagation pattern `if ((st = call(...)) != OK)` is
+#     idiomatic in C error-handling code and produces tighter call
+#     sites than the temporary-variable variant. The check is a
+#     remnant of C++ style guidance.
+#
+#   bugprone-branch-clone:
+#     The exit-code mapping switch in main.c lists every error code
+#     individually for explicit -Wswitch-enum coverage; collapsing
+#     identical arms would defeat that check's purpose.
 
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*/(include|src|tests|examples)/.*'

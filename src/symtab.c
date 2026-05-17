@@ -22,7 +22,13 @@
 #include <string.h>
 
 static int names_equal(const char *a, size_t a_len, const char *b, size_t b_len) {
-    return a_len == b_len && memcmp(a, b, a_len) == 0;
+    if (a_len != b_len) {
+        return 0;
+    }
+    if (a_len == 0) {
+        return 1; /* both empty -- avoid memcmp(NULL, NULL, 0) which the analyzer flags. */
+    }
+    return memcmp(a, b, a_len) == 0;
 }
 
 microlisp_status ml_sym_intern(ml_state *s, const char *name, size_t len, mvalue *out) {

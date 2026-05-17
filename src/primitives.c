@@ -440,6 +440,7 @@ static microlisp_status prim_newline(ml_state *s, size_t argc, const mvalue *arg
     return MICROLISP_OK;
 }
 
+/* NOLINTNEXTLINE(readability-non-const-parameter) */
 static microlisp_status prim_error(ml_state *s, size_t argc, const mvalue *argv, mvalue *out) {
     (void)out;
     if (argc == 0) {
@@ -475,7 +476,7 @@ typedef struct prim_decl {
     uint32_t arity_max; /**< UINT32_MAX = variadic. */
 } prim_decl;
 
-static const prim_decl kPrimitives[] = {
+static const prim_decl k_primitives[] = {
     /* Arithmetic */
     {"+", prim_add, 0, UINT32_MAX},
     {"-", prim_sub, 1, UINT32_MAX},
@@ -520,8 +521,8 @@ static const prim_decl kPrimitives[] = {
 };
 
 microlisp_status ml_primitives_install(ml_state *s, mvalue env) {
-    for (size_t i = 0; i < sizeof kPrimitives / sizeof kPrimitives[0]; i++) {
-        const prim_decl *d = &kPrimitives[i];
+    for (size_t i = 0; i < sizeof k_primitives / sizeof k_primitives[0]; i++) {
+        const prim_decl *d = &k_primitives[i];
         mvalue prim;
         microlisp_status st =
             ml_gc_alloc_primitive(s, d->name, d->fn, d->arity_min, d->arity_max, &prim);
