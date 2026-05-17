@@ -129,11 +129,14 @@ static microlisp_status prim_div(ml_state *s, size_t argc, const mvalue *argv, m
             ml_set_error(s, 0, 0, "/: division by zero");
             return MICROLISP_ERR_DIV_ZERO;
         }
-        if (acc == INT64_MIN && v == -1) {
+        /* The only division that can leave fixnum range is M_FIX_MIN / -1
+         * (= -M_FIX_MIN = M_FIX_MAX + 1). Check the result, not just
+         * INT64_MIN -- the fixnum boundary is tighter than int64's. */
+        acc /= v;
+        if (!fits_fixnum(acc)) {
             ml_set_error(s, 0, 0, "/: integer overflow");
             return MICROLISP_ERR_OVERFLOW;
         }
-        acc /= v;
     }
     *out = ml_make_fix(acc);
     return MICROLISP_OK;
@@ -149,11 +152,12 @@ static microlisp_status prim_quotient(ml_state *s, size_t argc, const mvalue *ar
         ml_set_error(s, 0, 0, "quotient: division by zero");
         return MICROLISP_ERR_DIV_ZERO;
     }
-    if (a == INT64_MIN && b == -1) {
+    int64_t result = a / b;
+    if (!fits_fixnum(result)) {
         ml_set_error(s, 0, 0, "quotient: integer overflow");
         return MICROLISP_ERR_OVERFLOW;
     }
-    *out = ml_make_fix(a / b);
+    *out = ml_make_fix(result);
     return MICROLISP_OK;
 }
 

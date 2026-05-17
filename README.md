@@ -47,7 +47,12 @@ C-stack space.
 
 ## Requirements
 
-- A 64-bit, C17-capable compiler (GCC ≥ 9, Clang ≥ 9, MSVC ≥ 2019).
+- A 64-bit C17 compiler with GCC-style overflow intrinsics
+  (`__builtin_add_overflow` etc.): GCC ≥ 9 or Clang ≥ 9. The
+  Windows build matrix runs MinGW gcc; native MSVC is **not yet
+  supported** (the library uses the GCC/Clang overflow intrinsics
+  directly and hasn't grown an MSVC-compatible fallback). A SafeInt-
+  based path is on the v0.2 roadmap.
 - CMake ≥ 3.20.
 - Ninja recommended.
 
@@ -234,7 +239,7 @@ out of scope for v0.1 and may land in a future minor release:
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `find_package(microlisp)` not found. | Install prefix isn't on CMake's search path. | `-DCMAKE_PREFIX_PATH=PREFIX` or set `microlisp_DIR`. |
-| MSVC shared-link unresolved externals. | Consumer compiled without `dllimport`. | Define `MICROLISP_USE_SHARED` before including the public header. |
+| MSVC native build fails to find `__builtin_add_overflow`. | The library uses GCC/Clang overflow intrinsics directly. | Build with MinGW gcc instead (e.g. via MSYS2). Native MSVC support is a v0.2 roadmap item. |
 | `pkg-config --cflags --libs microlisp` not found. | Install prefix's pkgconfig dir isn't on `PKG_CONFIG_PATH`. | `export PKG_CONFIG_PATH=PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH`. |
 | Sanitizer build aborts with `unexpected memory mapping`. | Kernel ≥ 6.x with Clang ≤ 15: ASLR vs sanitizer shadow. | Use Clang ≥ 16 (e.g. `CC=clang-19 cmake --preset asan`), or `sudo sysctl -w vm.mmap_rnd_bits=28`. Details in [CONTRIBUTING.md](CONTRIBUTING.md). |
 | Fuzz target fails to link with `libclang_rt.fuzzer-*.a: No such file`. | Debian splits Clang's sanitizer/fuzzer runtimes. | `sudo apt install -y libclang-rt-19-dev` (matching your `clang` version). |

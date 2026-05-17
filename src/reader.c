@@ -394,11 +394,20 @@ static microlisp_status read_list(ml_state *s, ml_reader *r, mvalue *out) {
 }
 
 static microlisp_status read_quote(ml_state *s, ml_reader *r, mvalue *out) {
+    size_t start_line = r->line;
+    size_t start_column = r->column;
     advance(r); /* consume `'` */
     mvalue form;
     microlisp_status st = read_form(s, r, &form);
     if (st != MICROLISP_OK) {
         return st;
+    }
+    /* A lone `'` at end-of-input -- read_form returns MV_EOF rather than
+     * an error, so we have to reject it explicitly here or the caller
+     * would silently see `(quote #<eof>)`. */
+    if (form == MV_EOF) {
+        ml_set_error(s, start_line, start_column, "lone `'` with no following datum");
+        return MICROLISP_ERR_READ_TRUNCATED;
     }
     /* Build `(quote <form>)` = cons(quote, cons(form, nil)). */
     size_t sp = ml_gc_savepoint(s);

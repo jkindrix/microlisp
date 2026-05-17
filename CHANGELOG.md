@@ -14,6 +14,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+## [0.1.2] - 2026-05-16
+
+Second post-release iteration. Five findings from a second cold
+review, all landed.
+
+### Fixed
+
+- **Malformed dotted special forms no longer crash.** `(begin . 1)`,
+  `(and . 1)`, `(or . 1)`, and `(cond (#t . 1))` previously cast a
+  non-pair tail to a pair pointer inside `begin_tco` / `handle_and_or`
+  and SEGFAULTed under ASan. The three handlers now validate the
+  argument list (and cond clauses' bodies via begin_tco) as proper
+  lists up front and return `MICROLISP_ERR_SYNTAX` on improper input.
+- **`(/ -2^59 -1)` and `(quotient -2^59 -1)` correctly report overflow.**
+  Both checks were guarding `INT64_MIN / -1` (an int64 overflow) but
+  the actual fixnum boundary is `M_FIX_MIN / -1 = M_FIX_MAX + 1`,
+  one past the documented 60-bit range. The result is now an explicit
+  `MICROLISP_ERR_OVERFLOW` rather than a wrong-but-tagged value.
+- **A lone `'` at end-of-input rejects cleanly.** `microlisp -e "'"`
+  previously printed `#<eof>` because the reader silently accepted
+  `MV_EOF` from the inner `read_form`. It now returns
+  `MICROLISP_ERR_READ_TRUNCATED` with a position-aware diagnostic.
+- **`(let ((x 1 2)) x)` errors instead of silently returning 1.**
+  The binding validator only checked that the binding had two cells;
+  any extra cells were ignored. Now requires exactly `(name expr)`
+  with `cdr.cdr == nil`. Applies to `let`, `let*`, and `letrec`.
+
+### Changed
+
+- **MSVC support claim walked back.** The README previously listed
+  MSVC ≥ 2019 in the requirements; the library uses GCC/Clang
+  `__builtin_*_overflow` intrinsics directly and has no MSVC fallback.
+  The Windows CI matrix entry labelled `msvc` actually runs MinGW
+  gcc. README and troubleshooting table updated to reflect reality;
+  proper MSVC support (via SafeInt or equivalent) is on the v0.2
+  roadmap.
+
 ## [0.1.1] - 2026-05-16
 
 First post-release iteration. Picks up the highest-ROI items from the
@@ -143,6 +180,7 @@ production-grade scaffolding as the rest of the trajectory.
   `.gitattributes`, pre-commit format hook, `scripts/format.sh` /
   `lint.sh` / `coverage.sh` / `install-hooks.sh`.
 
-[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/jkindrix/microlisp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jkindrix/microlisp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jkindrix/microlisp/releases/tag/v0.1.0

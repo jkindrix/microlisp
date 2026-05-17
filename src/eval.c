@@ -463,6 +463,14 @@ static microlisp_status begin_tco(ml_state *s, mvalue forms, mvalue env, mvalue 
         *result = SF_VALUE;
         return MICROLISP_OK;
     }
+    /* Reject improper lists up front so the loop below can dereference
+     * pairs safely. Without this check, `(begin . 1)` or `(cond (#t . 1))`
+     * casts a non-pair tail to a pair pointer and crashes. */
+    size_t form_count;
+    if (!proper_list_length(forms, &form_count)) {
+        ml_set_error(s, 0, 0, "body must be a proper list");
+        return MICROLISP_ERR_SYNTAX;
+    }
     while (ml_is_pair(ml_as_pair(forms)->cdr)) {
         mvalue ignored;
         microlisp_status st = ml_eval(s, ml_as_pair(forms)->car, env, &ignored);
@@ -516,7 +524,9 @@ static microlisp_status handle_let_family(ml_state *s, mvalue args, mvalue env, 
         mvalue cur = bindings;
         while (ml_is_pair(cur)) {
             mvalue pair = ml_as_pair(cur)->car;
-            if (!ml_is_pair(pair) || !ml_is_sym(ml_as_pair(pair)->car)) {
+            if (!ml_is_pair(pair) || !ml_is_pair(ml_as_pair(pair)->cdr) ||
+                ml_as_pair(ml_as_pair(pair)->cdr)->cdr != MV_NIL ||
+                !ml_is_sym(ml_as_pair(pair)->car)) {
                 ml_set_error(s, 0, 0, "%s: bindings must look like (name expr)", form_name);
                 ml_gc_restore(s, sp);
                 return MICROLISP_ERR_SYNTAX;
@@ -533,8 +543,11 @@ static microlisp_status handle_let_family(ml_state *s, mvalue args, mvalue env, 
     mvalue cur = bindings;
     while (ml_is_pair(cur)) {
         mvalue pair = ml_as_pair(cur)->car;
+        /* A binding is exactly (name expr): pair, with cdr being a pair
+         * whose cdr is nil, and a symbol in the name slot. Without the
+         * cdr.cdr.nil check, (let ((x 1 2)) ...) is silently accepted. */
         if (!ml_is_pair(pair) || !ml_is_pair(ml_as_pair(pair)->cdr) ||
-            !ml_is_sym(ml_as_pair(pair)->car)) {
+            ml_as_pair(ml_as_pair(pair)->cdr)->cdr != MV_NIL || !ml_is_sym(ml_as_pair(pair)->car)) {
             ml_set_error(s, 0, 0, "%s: bindings must look like (name expr)", form_name);
             ml_gc_restore(s, sp);
             return MICROLISP_ERR_SYNTAX;
@@ -579,6 +592,13 @@ static microlisp_status handle_and_or(ml_state *s, mvalue args, mvalue env, int 
         *result = SF_VALUE;
         return MICROLISP_OK;
     }
+    /* Reject improper lists: `(and . 1)` would otherwise cast a fixnum
+     * tail to a pair pointer in the loop below. */
+    size_t arg_count;
+    if (!proper_list_length(args, &arg_count)) {
+        ml_set_error(s, 0, 0, "%s: argument list must be a proper list", is_or ? "or" : "and");
+        return MICROLISP_ERR_SYNTAX;
+    }
     while (ml_is_pair(ml_as_pair(args)->cdr)) {
         mvalue v;
         microlisp_status st = ml_eval(s, ml_as_pair(args)->car, env, &v);
@@ -601,6 +621,11 @@ static microlisp_status handle_and_or(ml_state *s, mvalue args, mvalue env, int 
 
 static microlisp_status handle_cond(ml_state *s, mvalue args, mvalue env, mvalue *new_form,
                                     mvalue *new_env, mvalue *out, sf_result *result) {
+    size_t clause_count;
+    if (!proper_list_length(args, &clause_count)) {
+        ml_set_error(s, 0, 0, "cond: clause list must be a proper list");
+        return MICROLISP_ERR_SYNTAX;
+    }
     mvalue cur = args;
     while (ml_is_pair(cur)) {
         mvalue clause = ml_as_pair(cur)->car;

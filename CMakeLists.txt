@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.20)
 # Project metadata
 # --------------------------------------------------------------------------- #
 project(microlisp
-    VERSION 0.1.1
+    VERSION 0.1.2
     DESCRIPTION "A small Scheme-subset interpreter with mark-and-sweep GC, in modern C."
     LANGUAGES C
 )

@@ -358,6 +358,43 @@ TEST(equality) {
  * Error paths.
  * -------------------------------------------------------------------------- */
 
+TEST(dotted_special_forms_rejected) {
+    /* All four classes of malformed dotted special-form input that
+     * pre-0.1.2 cast a non-pair to a pair pointer and crashed. */
+    CHECK(eval_fails_with("(begin . 1)", MICROLISP_ERR_SYNTAX));
+    CHECK(eval_fails_with("(and . 1)", MICROLISP_ERR_SYNTAX));
+    CHECK(eval_fails_with("(or . 1)", MICROLISP_ERR_SYNTAX));
+    CHECK(eval_fails_with("(cond . 1)", MICROLISP_ERR_SYNTAX));
+    /* The clause-body case: cond clause whose cdr isn't a proper list. */
+    CHECK(eval_fails_with("(cond (#t . 1))", MICROLISP_ERR_SYNTAX));
+}
+
+TEST(division_at_fixnum_min_overflows) {
+    /* M_FIX_MIN = -2^59. Dividing by -1 yields 2^59, which is one past
+     * the documented fixnum range (M_FIX_MAX = 2^59 - 1). Pre-0.1.2
+     * the check guarded only INT64_MIN/-1, so this slipped through
+     * and produced a wrong-but-tagged value. */
+    CHECK(eval_fails_with("(/ -576460752303423488 -1)", MICROLISP_ERR_OVERFLOW));
+    CHECK(eval_fails_with("(quotient -576460752303423488 -1)", MICROLISP_ERR_OVERFLOW));
+}
+
+TEST(lone_quote_rejected) {
+    /* A lone `'` at end-of-input must error, not silently produce
+     * (quote #<eof>). */
+    CHECK(eval_fails_with("'", MICROLISP_ERR_READ_TRUNCATED));
+    CHECK(eval_fails_with("(list 1 ')", MICROLISP_ERR_READ_SYNTAX));
+}
+
+TEST(let_bindings_reject_extra_cells) {
+    /* `(let ((x 1 2)) x)` previously returned 1 because the validator
+     * stopped at the second cell of the binding. */
+    CHECK(eval_fails_with("(let ((x 1 2)) x)", MICROLISP_ERR_SYNTAX));
+    CHECK(eval_fails_with("(let* ((x 1 2)) x)", MICROLISP_ERR_SYNTAX));
+    CHECK(eval_fails_with("(letrec ((f 1 2)) f)", MICROLISP_ERR_SYNTAX));
+    /* Well-formed bindings still work. */
+    CHECK(eval_equals("(let ((x 1) (y 2)) (+ x y))", "3"));
+}
+
 TEST(type_errors) {
     CHECK(eval_fails_with("(car 5)", MICROLISP_ERR_TYPE));
     CHECK(eval_fails_with("(cdr 'a)", MICROLISP_ERR_TYPE));
@@ -584,6 +621,10 @@ int main(void) {
     RUN(pair_operations);
     RUN(predicates);
     RUN(equality);
+    RUN(dotted_special_forms_rejected);
+    RUN(division_at_fixnum_min_overflows);
+    RUN(lone_quote_rejected);
+    RUN(let_bindings_reject_extra_cells);
     RUN(type_errors);
     RUN(unbound_variable);
     RUN(user_error_primitive);
