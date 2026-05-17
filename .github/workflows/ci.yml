@@ -105,8 +105,13 @@ jobs:
       - name: clang-tidy
         # --extra-arg-before=-Wno-unknown-warning-option silences clang-tidy's
         # objection to GCC-only flags in compile_commands.json.
+        # tests/fuzz/ is excluded: the fuzz harnesses include
+        # microlisp_internal.h via the fuzz-only build, which the
+        # debug preset's compile_commands.json doesn't know about.
+        # Fuzz harnesses get warning coverage via their own
+        # microlisp_apply_warnings + -Werror at build time.
         run: |
-          find src tests examples -name '*.c' \
+          find src tests examples -name '*.c' -not -path 'tests/fuzz/*' \
             | xargs clang-tidy -p build/debug \
                 --extra-arg-before=-Wno-unknown-warning-option \
                 --warnings-as-errors=*

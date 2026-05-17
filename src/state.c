@@ -185,7 +185,7 @@ void microlisp_state_destroy(microlisp_state *state) {
     ml_raw_free(state, state->symtab.entries);
 
     ml_raw_free(state, state->gc_protect);
-    ml_raw_free(state, state->gc_marklist);
+    ml_raw_free(state, (void *)state->gc_marklist);
 
     /* Self. */
     void (*free_fn)(void *, void *) = state->allocator.free;

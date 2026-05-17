@@ -17,7 +17,7 @@ if [ ! -f "$BUILD_DIR/compile_commands.json" ]; then
     exit 1
 fi
 
-mapfile -t files < <(find src tests examples -name '*.c' -not -path '*/build/*')
+mapfile -t files < <(find src tests examples -name '*.c' -not -path '*/build/*' -not -path 'tests/fuzz/*')
 
 if [ ${#files[@]} -eq 0 ]; then
     echo "no source files found"

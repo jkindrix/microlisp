@@ -227,8 +227,9 @@ static int gc_push_mark(ml_state *s, mobj *o) {
             return 0;
         }
         if (s->gc_marklist != NULL) {
-            memcpy(grown, s->gc_marklist, s->gc_marklist_count * sizeof(mobj *));
-            ml_raw_free(s, s->gc_marklist);
+            memcpy((void *)grown, (const void *)s->gc_marklist,
+                   s->gc_marklist_count * sizeof(mobj *));
+            ml_raw_free(s, (void *)s->gc_marklist);
         }
         s->gc_marklist = grown;
         s->gc_marklist_cap = new_cap;
