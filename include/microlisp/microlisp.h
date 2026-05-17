@@ -133,7 +133,15 @@ typedef enum microlisp_status {
      *  chains recursively; this guard keeps the host C stack
      *  bounded. v0.2 will replace the recursive walker with an
      *  iterative one and lift the limit. */
-    MICROLISP_ERR_PRINT_DEPTH = 15
+    MICROLISP_ERR_PRINT_DEPTH = 15,
+
+    /** Structural-equality (`eqv?`, `equal?`) recursion depth
+     *  exceeded the configured limit. The v0.1.x comparison
+     *  walker is recursive on the pair-car axis; this guard
+     *  prevents a stack overflow when two deeply-nested
+     *  structures are compared. v0.2 lifts the limit alongside
+     *  the printer's iterative rewrite. */
+    MICROLISP_ERR_EQUAL_DEPTH = 16
 } microlisp_status;
 
 /** Opaque interpreter state. Construct with ::microlisp_state_create
@@ -154,7 +162,15 @@ typedef struct microlisp_state microlisp_state;
  */
 typedef struct microlisp_allocator {
     /** Allocate @p size bytes. Returns NULL on failure. Must be non-NULL
-     *  whenever the surrounding ::microlisp_allocator struct is non-NULL. */
+     *  whenever the surrounding ::microlisp_allocator struct is non-NULL.
+     *
+     *  **Alignment contract:** every returned non-NULL pointer must be
+     *  aligned to **at least 8 bytes** (`alignof(uint64_t)`). The
+     *  interpreter's value representation reserves the low 3 bits of
+     *  heap-object pointers for a type tag; allocators that return
+     *  weaker alignment (1- or 4-byte) will silently corrupt values
+     *  on the first GC cycle. Platform `malloc` always meets this on
+     *  any supported target; custom arenas must round up explicitly. */
     void *(*alloc)(size_t size, void *user);
     /** Free a pointer previously returned by @p alloc. Must be non-NULL
      *  whenever the surrounding ::microlisp_allocator struct is non-NULL.
@@ -172,6 +188,9 @@ typedef struct microlisp_allocator {
 
 /** Default value for ::microlisp_options::max_print_depth. */
 #define MICROLISP_DEFAULT_MAX_PRINT_DEPTH 1024
+
+/** Default value for ::microlisp_options::max_equal_depth. */
+#define MICROLISP_DEFAULT_MAX_EQUAL_DEPTH 1024
 
 /**
  * Options controlling a state. Zero-initialize to use defaults; pass
@@ -201,6 +220,13 @@ typedef struct microlisp_options {
      *  the pair-car axis; the limit bounds the worst case until
      *  v0.2's iterative printer lands. */
     size_t max_print_depth;
+
+    /** Maximum structural-equality walk depth. 0 means
+     *  ::MICROLISP_DEFAULT_MAX_EQUAL_DEPTH. `equal?` and `eqv?` on
+     *  trees deeper than this fail with
+     *  ::MICROLISP_ERR_EQUAL_DEPTH instead of exhausting the host
+     *  C stack. Same v0.2-iterative plan as the printer. */
+    size_t max_equal_depth;
 
     /** Hard ceiling on heap objects between GC collections. 0 means
      *  "use the built-in default" (currently 4096 objects, doubling

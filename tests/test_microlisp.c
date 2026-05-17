@@ -385,6 +385,48 @@ TEST(lone_quote_rejected) {
     CHECK(eval_fails_with("(list 1 ')", MICROLISP_ERR_READ_SYNTAX));
 }
 
+TEST(equal_depth_limit_rejects_deep_structures) {
+    /* Two 500k-deep nested lists used to SEGFAULT inside the recursive
+     * ml_value_equal walker. Pre-0.1.4 the comparison had no depth cap;
+     * v0.1.4 bounded it at MICROLISP_DEFAULT_MAX_EQUAL_DEPTH=1024. */
+    CHECK(eval_fails_with("(define (nest n acc) (if (= n 0) acc (nest (- n 1) (list acc))))"
+                          "(define a (nest 5000 (quote ())))"
+                          "(define b (nest 5000 (quote ())))"
+                          "(equal? a b)",
+                          MICROLISP_ERR_EQUAL_DEPTH));
+    /* Shallow comparisons still work. */
+    CHECK(eval_equals("(equal? (quote (1 (2 (3)))) (quote (1 (2 (3)))))", "#t"));
+}
+
+TEST(repl_routes_output_to_out_file) {
+    /* `(display ...)` / `(newline)` should write to the FILE * passed
+     * to microlisp_repl, not directly to stdout. Pre-0.1.4 the
+     * primitives wrote unconditionally to stdout, violating the API
+     * contract. */
+    microlisp_state *s = NULL;
+    REQUIRE(microlisp_state_create(NULL, &s) == MICROLISP_OK);
+
+    char in_buf[] = "(display \"routed\") (newline)\n";
+    FILE *in = fmemopen(in_buf, sizeof in_buf - 1, "r");
+    REQUIRE(in != NULL);
+    FILE *out = tmpfile();
+    REQUIRE(out != NULL);
+
+    microlisp_status st = microlisp_repl(s, in, out, NULL);
+    CHECK(st == MICROLISP_OK);
+
+    fflush(out);
+    rewind(out);
+    char captured[64] = {0};
+    size_t got = fread(captured, 1, sizeof captured - 1, out);
+    captured[got] = '\0';
+    CHECK(strstr(captured, "routed") != NULL);
+
+    fclose(in);
+    fclose(out);
+    microlisp_state_destroy(s);
+}
+
 TEST(print_depth_limit_rejects_deep_nesting) {
     /* `(nest n acc) -> (nest (- n 1) (list acc))` builds a list of
      * depth N in the car direction. Evaluation is tail-recursive
@@ -583,6 +625,7 @@ TEST(status_string_for_every_code) {
         MICROLISP_ERR_SYNTAX,
         MICROLISP_ERR_EVAL_DEPTH,
         MICROLISP_ERR_PRINT_DEPTH,
+        MICROLISP_ERR_EQUAL_DEPTH,
     };
     for (size_t i = 0; i < sizeof codes / sizeof codes[0]; i++) {
         const char *s = microlisp_status_string(codes[i]);
@@ -644,6 +687,8 @@ int main(void) {
     RUN(division_at_fixnum_min_overflows);
     RUN(lone_quote_rejected);
     RUN(let_bindings_reject_extra_cells);
+    RUN(equal_depth_limit_rejects_deep_structures);
+    RUN(repl_routes_output_to_out_file);
     RUN(print_depth_limit_rejects_deep_nesting);
     RUN(type_errors);
     RUN(unbound_variable);

@@ -125,8 +125,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lcov
       - run: cmake --preset coverage
       - run: cmake --build --preset coverage
-      - run: ctest --test-dir build/coverage --output-on-failure
-      - name: Collect + enforce coverage
+      # coverage.sh owns the reset / test / capture / enforce cycle
+      # so stale .gcda from prior runs can't pollute the capture.
+      - name: Reset + test + collect + enforce coverage
         env:
           MIN_LINE_COVERAGE: '75'
         run: scripts/coverage.sh build/coverage

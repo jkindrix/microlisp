@@ -132,6 +132,16 @@ microlisp_status microlisp_state_create(const microlisp_options *opts,
     if (s == NULL) {
         return MICROLISP_ERR_NOMEM;
     }
+    /* Alignment contract: heap-object pointers must have their low 3
+     * bits clear so the value representation can use them as a type
+     * tag. Platform malloc always satisfies this on supported
+     * targets; custom arenas might not. Verify on the very first
+     * allocation rather than waiting for the first GC to corrupt
+     * values silently. */
+    if (((uintptr_t)s & 0x7U) != 0U) {
+        free_fn(s, user_data);
+        return MICROLISP_ERR_INVALID_ARG;
+    }
     memset(s, 0, sizeof *s);
     s->allocator.alloc = alloc_fn;
     s->allocator.free = free_fn;
@@ -147,6 +157,10 @@ microlisp_status microlisp_state_create(const microlisp_options *opts,
     s->max_print_depth = (opts != NULL && opts->max_print_depth != 0)
                              ? opts->max_print_depth
                              : MICROLISP_DEFAULT_MAX_PRINT_DEPTH;
+    s->max_equal_depth = (opts != NULL && opts->max_equal_depth != 0)
+                             ? opts->max_equal_depth
+                             : MICROLISP_DEFAULT_MAX_EQUAL_DEPTH;
+    s->output = stdout;
     s->gc_threshold =
         (opts != NULL && opts->gc_initial_threshold != 0) ? opts->gc_initial_threshold : 4096;
 
@@ -322,25 +336,33 @@ microlisp_status microlisp_repl(microlisp_state *state, FILE *in_file, FILE *out
     if (out_file == NULL) {
         out_file = stdout;
     }
+    /* Route Scheme-level (display ...), (write ...), (newline) through
+     * out_file for the lifetime of this REPL. Without this they'd
+     * write directly to stdout, breaking the documented out_file
+     * contract for embedders that wire a non-stdout stream. */
+    FILE *saved_output = state->output;
+    state->output = out_file;
 
     /* Line-based REPL: read one line, eval as a (possibly empty)
      * top-level program. v0.1 doesn't support multi-line forms; a
      * partial-form continuation prompt is a v0.2 ergonomics win. */
     char buf[4096];
+    microlisp_status repl_status = MICROLISP_OK;
     for (;;) {
         if (prompt != NULL) {
             if (fputs_or_fail(out_file, prompt) != 0 || fflush(out_file) == EOF) {
-                return MICROLISP_ERR_IO;
+                repl_status = MICROLISP_ERR_IO;
+                goto cleanup;
             }
         }
         if (fgets(buf, sizeof buf, in_file) == NULL) {
             if (prompt != NULL) {
                 /* Tidy trailing newline so the shell prompt isn't smudged. */
                 if (fputs_or_fail(out_file, "\n") != 0) {
-                    return MICROLISP_ERR_IO;
+                    repl_status = MICROLISP_ERR_IO;
                 }
             }
-            return MICROLISP_OK;
+            goto cleanup;
         }
         size_t n = strlen(buf);
         if (n == 0) {
@@ -354,7 +376,8 @@ microlisp_status microlisp_repl(microlisp_state *state, FILE *in_file, FILE *out
                 if (fwrite(result, 1, result_len, out_file) != result_len ||
                     fputs_or_fail(out_file, "\n") != 0) {
                     microlisp_buffer_free(state, result);
-                    return MICROLISP_ERR_IO;
+                    repl_status = MICROLISP_ERR_IO;
+                    goto cleanup;
                 }
             }
             microlisp_buffer_free(state, result);
@@ -362,8 +385,12 @@ microlisp_status microlisp_repl(microlisp_state *state, FILE *in_file, FILE *out
             const char *msg = microlisp_state_error(state);
             const char *tag = microlisp_status_string(st);
             if (fprintf(out_file, "error (%s): %s\n", tag, msg) < 0) {
-                return MICROLISP_ERR_IO;
+                repl_status = MICROLISP_ERR_IO;
+                goto cleanup;
             }
         }
     }
+cleanup:
+    state->output = saved_output;
+    return repl_status;
 }

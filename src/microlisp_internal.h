@@ -338,6 +338,19 @@ struct microlisp_state {
     size_t max_print_depth;
     size_t print_depth;
 
+    /* Structural-equality depth limiter: same shape as the printer's.
+     * ml_value_equal / ml_value_eqv walk pair-car chains recursively;
+     * the cap keeps the host C stack bounded when comparing two
+     * deeply-nested structures (a fuzz / DoS surface). */
+    size_t max_equal_depth;
+    size_t equal_depth;
+
+    /* Output sink used by the `display`, `write`, and `newline`
+     * primitives. Defaults to stdout; microlisp_repl temporarily
+     * swaps in the caller-supplied out_file so REPL output honors
+     * the API contract that everything goes through that FILE *. */
+    FILE *output;
+
     /* Last error --------------------------------------------------------- */
     ml_error last_error;
 };
@@ -441,7 +454,11 @@ microlisp_status ml_primitives_install(ml_state *s, mvalue env);
 
 int ml_value_eq(mvalue a, mvalue b);
 int ml_value_eqv(mvalue a, mvalue b);
-int ml_value_equal(mvalue a, mvalue b);
+/* Structural equality with bounded recursion depth. Walks pairs
+ * recursively; bails with MICROLISP_ERR_EQUAL_DEPTH if depth exceeds
+ * ml_state::max_equal_depth. Returns the equality result through
+ * @p out_equal on success. */
+microlisp_status ml_value_equal(ml_state *s, mvalue a, mvalue b, int *out_equal);
 
 /* --------------------------------------------------------------------------
  * Error helpers.

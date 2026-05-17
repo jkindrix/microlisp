@@ -21,6 +21,14 @@
  *   2  I/O error reading the input or writing to stdout, or an unknown
  *      option / unknown subcommand on the command line
  */
+/* fileno + isatty are POSIX, not strict C17. */
+#if defined(__unix__) || defined(__APPLE__)
+#ifndef _POSIX_C_SOURCE
+/* NOLINTNEXTLINE(readability-identifier-naming) */
+#define _POSIX_C_SOURCE 200809L
+#endif
+#endif
+
 #include "microlisp/microlisp.h"
 
 #include <signal.h>
@@ -28,6 +36,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#define IS_TTY(fd) _isatty(fd)
+#else
+#include <unistd.h>
+#define IS_TTY(fd) isatty(fd)
+#endif
 
 /* -- I/O helpers ----------------------------------------------------------- */
 
@@ -124,6 +140,7 @@ static int exit_code_for(microlisp_status st) {
     case MICROLISP_ERR_SYNTAX:
     case MICROLISP_ERR_EVAL_DEPTH:
     case MICROLISP_ERR_PRINT_DEPTH:
+    case MICROLISP_ERR_EQUAL_DEPTH:
         return 1;
     default:
         return 1;
@@ -156,9 +173,11 @@ static int eval_source(microlisp_state *state, const char *source, size_t len, i
 }
 
 static int run_repl(microlisp_state *state) {
-    /* Use prompts only when stdin is a terminal so piped scripts stay
-     * tidy. */
-    const char *prompt = "microlisp> ";
+    /* Use prompts only when stdin is a terminal -- piped input gets a
+     * silent REPL so wrapped output is clean. The comment used to say
+     * this but the code unconditionally passed the prompt; fixed in
+     * v0.1.4. */
+    const char *prompt = IS_TTY(fileno(stdin)) ? "microlisp> " : NULL;
     microlisp_status st = microlisp_repl(state, stdin, stdout, prompt);
     return exit_code_for(st);
 }

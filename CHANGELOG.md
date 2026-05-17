@@ -14,6 +14,53 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+## [0.1.4] - 2026-05-16
+
+Fourth post-release iteration. Five findings from a fresh cold
+reviewer, all landed.
+
+### Added
+
+- **`MICROLISP_ERR_EQUAL_DEPTH` + `microlisp_options::max_equal_depth`**
+  (default 1024). `equal?` and `eqv?` walked pair-car chains
+  recursively without bound; two 500k-deep nested structures
+  SEGFAULTed before this fix. Same depth-guard pattern as the
+  printer in v0.1.3; v0.2 lifts both limits with an iterative
+  comparison/print walker.
+
+### Fixed
+
+- **`equal?` / `eqv?` no longer crash on deeply-nested structures.**
+  ASan-confirmed clean; regression test added.
+- **`microlisp_repl` now honors its `out_file` contract.** The
+  `display`, `write`, and `newline` primitives previously wrote
+  directly to `stdout` regardless of the FILE * passed in. They
+  now route through a `state->output` field that
+  `microlisp_repl` temporarily swaps for the caller-supplied
+  stream. Embedders that pipe REPL output to a non-stdout sink
+  finally get what the API documented. Regression test asserts
+  output lands in the supplied FILE *.
+- **Allocator alignment contract now documented and enforced.**
+  The internal value representation requires heap pointers
+  aligned to at least 8 bytes (low 3 bits used as a tag).
+  `microlisp_allocator::alloc`'s doc block now states this
+  explicitly, and `microlisp_state_create` checks the first
+  allocation's alignment, returning `MICROLISP_ERR_INVALID_ARG`
+  if the contract is violated rather than silently corrupting
+  values on the next GC.
+- **`microlisp` no longer prints the `microlisp> ` prompt when
+  stdin isn't a terminal.** The comment in `main.c` already
+  said this was intended; the code unconditionally passed the
+  prompt. Now guarded by `isatty(fileno(stdin))` (Win32:
+  `_isatty(_fileno(stdin))`). Piped one-liners produce clean
+  output.
+- **`scripts/coverage.sh` owns the reset/test/capture cycle.**
+  Stale `.gcda` files from a previous run used to merge with new
+  counters, spamming libgcov stderr (`Merge mismatch for ...`)
+  and breaking CLI regex tests that inspect output layout. The
+  script now deletes `.gcda` before invoking `ctest`. CI step
+  collapsed accordingly.
+
 ## [0.1.3] - 2026-05-16
 
 Third post-release iteration. Same cold reviewer as round 2, after
@@ -212,7 +259,8 @@ production-grade scaffolding as the rest of the trajectory.
   `.gitattributes`, pre-commit format hook, `scripts/format.sh` /
   `lint.sh` / `coverage.sh` / `install-hooks.sh`.
 
-[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/jkindrix/microlisp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/jkindrix/microlisp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jkindrix/microlisp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jkindrix/microlisp/compare/v0.1.0...v0.1.1

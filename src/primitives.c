@@ -368,9 +368,13 @@ static microlisp_status prim_eqv_p(ml_state *s, size_t argc, const mvalue *argv,
 }
 
 static microlisp_status prim_equal_p(ml_state *s, size_t argc, const mvalue *argv, mvalue *out) {
-    (void)s;
     (void)argc;
-    *out = ml_make_bool(ml_value_equal(argv[0], argv[1]));
+    int eq = 0;
+    microlisp_status st = ml_value_equal(s, argv[0], argv[1], &eq);
+    if (st != MICROLISP_OK) {
+        return st;
+    }
+    *out = ml_make_bool(eq);
     return MICROLISP_OK;
 }
 
@@ -385,9 +389,12 @@ static microlisp_status prim_not(ml_state *s, size_t argc, const mvalue *argv, m
  * I/O.
  * -------------------------------------------------------------------------- */
 
-static microlisp_status stdout_sink(const void *bytes, size_t len, void *user) {
-    (void)user;
-    if (fwrite(bytes, 1, len, stdout) != len) {
+/* Sink that writes to the state's currently-configured output stream
+ * (defaults to stdout; microlisp_repl swaps in its out_file for the
+ * duration of the loop). The state pointer comes through `user`. */
+static microlisp_status state_output_sink(const void *bytes, size_t len, void *user) {
+    ml_state *s = (ml_state *)user;
+    if (fwrite(bytes, 1, len, s->output) != len) {
         return MICROLISP_ERR_IO;
     }
     return MICROLISP_OK;
@@ -397,17 +404,17 @@ static microlisp_status stdout_sink(const void *bytes, size_t len, void *user) {
  * rather than silently at process exit -- this is what makes
  * `microlisp -e '(display ...)' | head -n 0` return our documented
  * exit code 2 instead of 0. */
-static microlisp_status stdout_flush(void) {
-    return fflush(stdout) == 0 ? MICROLISP_OK : MICROLISP_ERR_IO;
+static microlisp_status state_output_flush(ml_state *s) {
+    return fflush(s->output) == 0 ? MICROLISP_OK : MICROLISP_ERR_IO;
 }
 
 static microlisp_status prim_display(ml_state *s, size_t argc, const mvalue *argv, mvalue *out) {
     (void)argc;
-    microlisp_status st = ml_print(s, argv[0], /*write_style=*/0, stdout_sink, NULL);
+    microlisp_status st = ml_print(s, argv[0], /*write_style=*/0, state_output_sink, s);
     if (st != MICROLISP_OK) {
         return st;
     }
-    st = stdout_flush();
+    st = state_output_flush(s);
     if (st != MICROLISP_OK) {
         return st;
     }
@@ -417,11 +424,11 @@ static microlisp_status prim_display(ml_state *s, size_t argc, const mvalue *arg
 
 static microlisp_status prim_write(ml_state *s, size_t argc, const mvalue *argv, mvalue *out) {
     (void)argc;
-    microlisp_status st = ml_print(s, argv[0], /*write_style=*/1, stdout_sink, NULL);
+    microlisp_status st = ml_print(s, argv[0], /*write_style=*/1, state_output_sink, s);
     if (st != MICROLISP_OK) {
         return st;
     }
-    st = stdout_flush();
+    st = state_output_flush(s);
     if (st != MICROLISP_OK) {
         return st;
     }
@@ -430,13 +437,12 @@ static microlisp_status prim_write(ml_state *s, size_t argc, const mvalue *argv,
 }
 
 static microlisp_status prim_newline(ml_state *s, size_t argc, const mvalue *argv, mvalue *out) {
-    (void)s;
     (void)argc;
     (void)argv;
-    if (fputc('\n', stdout) == EOF) {
+    if (fputc('\n', s->output) == EOF) {
         return MICROLISP_ERR_IO;
     }
-    microlisp_status st = stdout_flush();
+    microlisp_status st = state_output_flush(s);
     if (st != MICROLISP_OK) {
         return st;
     }

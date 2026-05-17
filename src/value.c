@@ -32,14 +32,43 @@ int ml_value_eqv(mvalue a, mvalue b) {
     return 0;
 }
 
-int ml_value_equal(mvalue a, mvalue b) {
+microlisp_status ml_value_equal(ml_state *s, mvalue a, mvalue b, int *out_equal) {
+    /* Bound the recursion. Two 500k-deep nested lists used to SEGFAULT
+     * here even though both structures were finite. The check is on
+     * every invocation so cyclic structures also trip the limit
+     * instead of recursing forever. */
+    if (s->equal_depth >= s->max_equal_depth) {
+        ml_set_error(s, 0, 0, "equal?: comparison depth exceeded limit of %zu", s->max_equal_depth);
+        return MICROLISP_ERR_EQUAL_DEPTH;
+    }
     if (ml_value_eqv(a, b)) {
-        return 1;
+        *out_equal = 1;
+        return MICROLISP_OK;
     }
     if (ml_is_pair(a) && ml_is_pair(b)) {
         mpair *pa = ml_as_pair(a);
         mpair *pb = ml_as_pair(b);
-        return ml_value_equal(pa->car, pb->car) && ml_value_equal(pa->cdr, pb->cdr);
+        s->equal_depth++;
+        int car_eq = 0;
+        microlisp_status st = ml_value_equal(s, pa->car, pb->car, &car_eq);
+        if (st != MICROLISP_OK) {
+            s->equal_depth--;
+            return st;
+        }
+        if (!car_eq) {
+            s->equal_depth--;
+            *out_equal = 0;
+            return MICROLISP_OK;
+        }
+        int cdr_eq = 0;
+        st = ml_value_equal(s, pa->cdr, pb->cdr, &cdr_eq);
+        s->equal_depth--;
+        if (st != MICROLISP_OK) {
+            return st;
+        }
+        *out_equal = cdr_eq;
+        return MICROLISP_OK;
     }
-    return 0;
+    *out_equal = 0;
+    return MICROLISP_OK;
 }

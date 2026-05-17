@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
-# Run coverage analysis with flags appropriate to the installed lcov.
-# CI uses lcov 2.x's stricter flag surface; older distros (Debian 12 ships
-# lcov 1.16) reject those flags. This script auto-detects the version.
+# Run the full coverage cycle: reset stale profile data, run the
+# coverage-build test suite, capture coverage with flags appropriate to
+# the installed lcov, and enforce the line-coverage floor.
+#
+# Owning all four steps in one script (rather than relying on the caller
+# to remember the reset) prevents stale .gcda files from corrupting the
+# capture or leaking libgcov stderr noise into ctest output -- the bug
+# the v0.1.4 cold review caught.
+#
+# CI uses lcov 2.x's stricter flag surface; older distros (Debian 12
+# ships lcov 1.16) reject those flags. The capture step auto-detects
+# the version.
 #
 # Usage: scripts/coverage.sh [BUILD_DIR]   (default: build/coverage)
 set -euo pipefail
@@ -21,9 +30,19 @@ fi
 
 if [ ! -d "$BUILD_DIR" ]; then
     echo "error: $BUILD_DIR does not exist." >&2
-    echo "       Run: cmake --preset coverage && cmake --build --preset coverage && ctest --test-dir $BUILD_DIR" >&2
+    echo "       Run: cmake --preset coverage && cmake --build --preset coverage" >&2
     exit 1
 fi
+
+# Reset stale .gcda. Without this, re-running ctest against an existing
+# coverage build appends to old per-run counters; the merged data
+# confuses libgcov, which spams stderr ("Merge mismatch for ..." etc.)
+# and breaks CLI regex tests that inspect stdout/stderr layout.
+find "$BUILD_DIR" -name '*.gcda' -delete
+
+# Run the test suite. This is what produces the .gcda files we'll
+# capture next.
+ctest --test-dir "$BUILD_DIR" --output-on-failure
 
 lcov_major=$(lcov --version 2>&1 | sed -nE 's/.*LCOV version ([0-9]+).*/\1/p' | head -1)
 
