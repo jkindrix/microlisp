@@ -171,9 +171,9 @@ static microlisp_status print_value(ml_state *s, mvalue v, int write_style, ml_o
         return MICROLISP_ERR_PRINT_DEPTH;
     }
     s->print_depth++;
-    microlisp_status _st = print_value_inner(s, v, write_style, out, user);
+    microlisp_status st = print_value_inner(s, v, write_style, out, user);
     s->print_depth--;
-    return _st;
+    return st;
 }
 
 static microlisp_status print_value_inner(ml_state *s, mvalue v, int write_style, ml_out_fn out,
