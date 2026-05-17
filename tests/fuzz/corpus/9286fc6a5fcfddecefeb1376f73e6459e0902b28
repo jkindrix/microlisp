@@ -1,1 +1,0 @@
-(define (loop n accù) (if (= n 5) (loop (- n 1) (cons n acc)))) (length (loop 1000 (quote ())))

@@ -197,69 +197,113 @@ void ml_gc_restore(ml_state *s, size_t saved) {
 /* --------------------------------------------------------------------------
  * Mark.
  *
- * Recursive walk over the live graph. Recursion is bounded by the
- * reader's depth limit (default 256) for parser-built structures, and
- * by user-controlled depth for builder-built ones. A user program
- * that constructs a deeply nested list via repeated `cons` can in
- * principle blow the C stack inside mark(); document this and treat
- * it as a v0.2 concern (iterative marker with an explicit stack).
+ * Iterative BFS over the live graph using an explicit worklist on
+ * the state. The recursive version overflowed the C stack on any
+ * input that built a long flat list (`(loop n (cons n acc))`) or
+ * a deeply-nested tree -- both shapes the fuzzer produces routinely
+ * from tail-recursive accumulator programs.
+ *
+ * Allocation discipline: the worklist itself is heap-allocated via
+ * the user's allocator. If a grow fails mid-collection, we abort
+ * the entire mark+sweep cycle and leave the heap untouched -- worse
+ * than collecting (we'll likely OOM soon if we couldn't grow), but
+ * strictly safer than half-marking and freeing-as-unreachable an
+ * object whose descendants we didn't get to visit.
  * -------------------------------------------------------------------------- */
 
-static void mark_value(mvalue v);
-
-static void mark_obj(mobj *o) {
-    if (o == NULL || o->marked) {
-        return;
-    }
-    o->marked = 1;
-    switch (o->type) {
-    case OBJ_PAIR: {
-        mpair *p = (mpair *)o;
-        mark_value(p->car);
-        mark_value(p->cdr);
-        break;
-    }
-    case OBJ_STRING:
-        /* No outgoing references. */
-        break;
-    case OBJ_CLOSURE: {
-        mclosure *c = (mclosure *)o;
-        mark_value(c->env);
-        mark_value(c->params);
-        mark_value(c->body);
-        break;
-    }
-    case OBJ_PRIMITIVE:
-        /* No outgoing references. */
-        break;
-    case OBJ_ENV: {
-        menv *e = (menv *)o;
-        mark_value(e->parent);
-        for (size_t i = 0; i < e->count; i++) {
-            mark_value(e->values[i]);
-            /* names[i] is a symbol value -- tagged, no heap pointer to
-             * follow, but mark_value handles all tags uniformly. */
-            mark_value(e->names[i]);
+/* Push @p o onto the mark worklist. Returns 1 on success, 0 on
+ * allocation failure (in which case the caller must abort the
+ * collection). The object is assumed not yet marked; the caller is
+ * responsible for setting o->marked = 1 before pushing. */
+static int gc_push_mark(ml_state *s, mobj *o) {
+    if (s->gc_marklist_count == s->gc_marklist_cap) {
+        size_t new_cap = s->gc_marklist_cap == 0 ? 64 : s->gc_marklist_cap * 2;
+        size_t bytes;
+        if (__builtin_mul_overflow(new_cap, sizeof(mobj *), &bytes)) {
+            return 0;
         }
-        break;
+        mobj **grown = (mobj **)ml_raw_alloc(s, bytes);
+        if (grown == NULL) {
+            return 0;
+        }
+        if (s->gc_marklist != NULL) {
+            memcpy(grown, s->gc_marklist, s->gc_marklist_count * sizeof(mobj *));
+            ml_raw_free(s, s->gc_marklist);
+        }
+        s->gc_marklist = grown;
+        s->gc_marklist_cap = new_cap;
     }
-    default:
-        /* Unknown type -- shouldn't happen; leave the mark in place so
-         * we don't loop on a cycle, but the object will also not be
-         * recursively walked, which surfaces any unreferenced child
-         * via a use-after-free under sanitizers. */
-        break;
-    }
+    s->gc_marklist[s->gc_marklist_count++] = o;
+    return 1;
 }
 
-static void mark_value(mvalue v) {
-    if (M_TAG_OF(v) != M_TAG_OBJ) {
-        return; /* immediate / fixnum / symbol: no heap object behind it. */
+/* If @p v points at an unmarked heap object, mark it and push it on
+ * the worklist for later child-walking. Returns 1 on success, 0 on
+ * grow-failure. */
+static int gc_visit(ml_state *s, mvalue v) {
+    if (M_TAG_OF(v) != M_TAG_OBJ || v == 0) {
+        return 1;
     }
-    if (v == 0) {
-        return;
+    mobj *o = ml_as_obj(v);
+    if (o->marked) {
+        return 1;
     }
-    mark_obj(ml_as_obj(v));
+    o->marked = 1;
+    return gc_push_mark(s, o);
+}
+
+/* Drain the worklist, visiting each object's outgoing references.
+ * Returns 1 on clean drain, 0 on OOM. */
+static int gc_drain_worklist(ml_state *s) {
+    while (s->gc_marklist_count > 0) {
+        mobj *o = s->gc_marklist[--s->gc_marklist_count];
+        switch (o->type) {
+        case OBJ_PAIR: {
+            mpair *p = (mpair *)o;
+            if (!gc_visit(s, p->car) || !gc_visit(s, p->cdr)) {
+                return 0;
+            }
+            break;
+        }
+        case OBJ_STRING:
+        case OBJ_PRIMITIVE:
+            /* No outgoing references. */
+            break;
+        case OBJ_CLOSURE: {
+            mclosure *c = (mclosure *)o;
+            if (!gc_visit(s, c->env) || !gc_visit(s, c->params) || !gc_visit(s, c->body)) {
+                return 0;
+            }
+            break;
+        }
+        case OBJ_ENV: {
+            menv *e = (menv *)o;
+            if (!gc_visit(s, e->parent)) {
+                return 0;
+            }
+            for (size_t i = 0; i < e->count; i++) {
+                if (!gc_visit(s, e->values[i]) || !gc_visit(s, e->names[i])) {
+                    return 0;
+                }
+            }
+            break;
+        }
+        default:
+            /* Unknown type -- skip; it's marked, won't be re-visited. */
+            break;
+        }
+    }
+    return 1;
+}
+
+/* Best-effort fallback when the worklist couldn't grow mid-collection:
+ * clear every object's mark so a subsequent (successful) collection
+ * starts fresh. Without this we'd half-mark the heap and the next
+ * sweep would free reachable objects. */
+static void gc_clear_all_marks(ml_state *s) {
+    for (mobj *o = s->gc_head; o != NULL; o = o->next) {
+        o->marked = 0;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -295,10 +339,22 @@ static void sweep(ml_state *s) {
 void ml_gc_collect(ml_state *s) {
     /* Roots: top-level env + protect stack + pre-interned-symbol mvalues.
      * The interned symbols are not heap objects (they're tagged-immediate),
-     * but marking them is a no-op so the pattern stays uniform. */
-    mark_value(s->toplevel_env);
-    for (size_t i = 0; i < s->gc_protect_count; i++) {
-        mark_value(s->gc_protect[i]);
+     * but gc_visit handles all tags uniformly. */
+    s->gc_marklist_count = 0;
+    int ok = gc_visit(s, s->toplevel_env);
+    for (size_t i = 0; ok && i < s->gc_protect_count; i++) {
+        ok = gc_visit(s, s->gc_protect[i]);
+    }
+    if (ok) {
+        ok = gc_drain_worklist(s);
+    }
+    if (!ok) {
+        /* Couldn't grow the worklist. Reset everything and bail; the
+         * heap is unchanged. The next allocation that retries will
+         * try again, by which point the caller may have freed memory. */
+        gc_clear_all_marks(s);
+        s->gc_marklist_count = 0;
+        return;
     }
     sweep(s);
 

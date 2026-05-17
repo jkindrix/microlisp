@@ -1,17 +1,24 @@
 /*
  * SPDX-License-Identifier: MIT
  *
- * libFuzzer harness for the reader path only. Drives microlisp_eval
- * with a state that has the evaluator effectively unreachable -- we
- * feed source that should error before any user-defined form runs,
- * but the reader still has to walk every byte.
+ * libFuzzer harness for the reader path only.
  *
- * In practice we just call microlisp_eval and accept any status; the
- * goal is to crash the reader on bytes it doesn't expect, not to
- * assert a particular outcome. ASan + UBSan provide the actual
- * oracle (out-of-bounds reads, NULL derefs, integer UB).
+ * Unlike fuzz_eval (which drives the full Turing-complete pipeline
+ * via microlisp_eval and so can legitimately OOM or time out on a
+ * crafted infinite loop), this harness calls ml_read directly. The
+ * reader's runtime is bounded by the input size, so any timeout or
+ * OOM here is a real bug.
+ *
+ * Each read'd form is pushed onto the protect stack so that the
+ * next read's allocations don't reclaim it -- this exercises the
+ * full GC-during-reader path that one-shot inputs miss.
+ *
+ * ASan + UBSan provide the actual oracle (out-of-bounds reads, NULL
+ * derefs, integer UB, leak detection at state destroy).
  */
 #include "microlisp/microlisp.h"
+
+#include "microlisp_internal.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -25,10 +32,26 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (microlisp_state_create(NULL, &s) != MICROLISP_OK) {
         return 0;
     }
-    char *result = NULL;
-    size_t result_len = 0;
-    (void)microlisp_eval(s, (const char *)data, size, &result, &result_len);
-    microlisp_buffer_free(s, result);
+    ml_reader r = {
+        .input = data,
+        .len = size,
+        .pos = 0,
+        .line = 1,
+        .column = 1,
+        .depth = 0,
+    };
+    /* Read until EOF or a parse error; protect every form so the GC
+     * has to walk the accumulated tree on each subsequent allocation. */
+    for (;;) {
+        mvalue form = MV_UNDEF;
+        microlisp_status st = ml_read(s, &r, &form);
+        if (st != MICROLISP_OK || form == MV_EOF) {
+            break;
+        }
+        if (ml_gc_protect(s, form) != MICROLISP_OK) {
+            break;
+        }
+    }
     microlisp_state_destroy(s);
     return 0;
 }

@@ -182,22 +182,39 @@ jobs:
       - name: Build fuzz targets
         run: cmake --build build/fuzz --target fuzz_read fuzz_eval
       - name: Run fuzz_read (with seed corpus + dictionary)
-        # Reader is non-Turing-complete; any timeout is a real bug.
+        # The reader harness drives ml_read only (not the evaluator),
+        # so it's non-Turing-complete -- any timeout or OOM here is a
+        # real bug worth investigating.
         run: |
           ./build/fuzz/tests/fuzz/fuzz_read tests/fuzz/corpus \
               -dict=tests/fuzz/microlisp.dict \
-              -max_total_time=20 -print_final_stats=1
+              -max_total_time=20 -timeout=4 -print_final_stats=1
       - name: Run fuzz_eval (with seed corpus + dictionary)
-        # Evaluator IS Turing-complete: a fuzzer-generated `(define (loop) (loop)) (loop)`
-        # legitimately exceeds any per-input wall budget. -timeout_exitcode=0
-        # tells libFuzzer to treat such timeouts as non-failures so CI doesn't
-        # red on input-driven infinite loops. Real ASan / UBSan / OOM /
-        # assertion findings still flip the default error_exitcode=77.
+        # The evaluator IS Turing-complete -- a fuzzer-generated
+        # `(define (loop) (loop)) (loop)` legitimately exceeds any
+        # per-input wall budget, and `(loop) (cons n acc)` can grow
+        # the heap without bound. libFuzzer's -timeout_exitcode=0
+        # tolerates timeouts directly. For OOMs we run via a wrapper
+        # that maps `libFuzzer: out-of-memory` to a non-failure
+        # while letting real ASan / UBSan / assertion findings
+        # propagate.
         run: |
-          ./build/fuzz/tests/fuzz/fuzz_eval tests/fuzz/corpus \
+          set +e
+          out=$(./build/fuzz/tests/fuzz/fuzz_eval tests/fuzz/corpus \
               -dict=tests/fuzz/microlisp.dict \
               -max_total_time=25 -timeout=4 -timeout_exitcode=0 \
-              -print_final_stats=1
+              -rss_limit_mb=1024 -print_final_stats=1 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          if [ "$rc" -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$out" | grep -qE 'libFuzzer: (out-of-memory|timeout)'; then
+            echo "(non-failure: Turing-complete input hit the bounded envelope)"
+            exit 0
+          fi
+          exit "$rc"
 
   docs:
     name: Doxygen

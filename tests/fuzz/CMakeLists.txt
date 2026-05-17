@@ -19,7 +19,8 @@ target_include_directories(microlisp_fuzz
     PUBLIC
         "${CMAKE_SOURCE_DIR}/include"
         "${CMAKE_BINARY_DIR}/generated/include"
-    PRIVATE
+        # PUBLIC: fuzz_read.c drives the reader directly via the
+        # internal API, so it needs to see microlisp_internal.h.
         "${CMAKE_SOURCE_DIR}/src"
 )
 target_compile_features(microlisp_fuzz PRIVATE c_std_17)

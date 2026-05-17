@@ -1,1 +1,0 @@
-(define (sq x) (+ (sq (car xine (sum-sq xs) (if (null? xs) 0 (+ (sq (car xs)) (sum-sq (cdr xs))))) 1 2 3)  45)

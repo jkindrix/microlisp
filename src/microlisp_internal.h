@@ -286,6 +286,16 @@ struct microlisp_state {
      * chance of catching missing roots. */
     int gc_stress;
 
+    /* Mark worklist: explicit-stack BFS used by ml_gc_collect to walk
+     * the live graph iteratively. A purely recursive mark would
+     * overflow the C stack on a heap-built linked list with several
+     * thousand cons cells (which fuzz_read produces routinely from
+     * tail-recursive accumulator-style programs). The worklist lives
+     * on the state so allocation overhead amortizes across collections. */
+    mobj **gc_marklist;
+    size_t gc_marklist_count;
+    size_t gc_marklist_cap;
+
     /* Symbol table ------------------------------------------------------- */
     ml_symtab symtab;
 

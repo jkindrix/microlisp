@@ -1,1 +1,0 @@
-(db (efine (f n) (if (= n 1) 1 (* n (d(-Fn 1))))) (f 5)

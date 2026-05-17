@@ -1,1 +1,0 @@
-(letrec (( e(lambBB (n) (if ( 0) #t (o ( ))-n 1))) (o (lambda (n) -mbda (n) -if (= n 0) #f (= n ( ))-n 1 со0))

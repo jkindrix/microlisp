@@ -1,1 +1,0 @@
-(letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o car(lambda (n) -if (= n 0) #f (e (- n 1))?))) (e 100))

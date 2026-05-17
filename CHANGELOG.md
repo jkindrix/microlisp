@@ -21,13 +21,36 @@ v0.1.0 cold review; the heavier roadmap (`microlisp_state_interrupt`,
 the value-level C API, hygienic macros, NOMEM fault injection,
 coverage ratchet) is held for 0.2.
 
+### Fixed
+
+- **GC mark walker is now iterative.** The v0.1.0 recursive
+  `mark_obj` overflowed the C stack on any heap-built linked list
+  of more than ~3000 cons cells -- exactly the shape a tail-
+  recursive `(loop n (cons n acc))` produces. Replaced with an
+  explicit worklist held on the state; the worklist grows
+  on-demand and a grow-failure cleanly aborts the collection
+  rather than half-marking the heap. Found by fuzz_read shortly
+  after that target landed in CI (see Added section below for
+  the harness split that made fuzz_read's findings interpretable).
+  Regression test: a 100 000-cell list now traverses cleanly under
+  ASan.
+
 ### Added
 
 - **`fuzz_eval` runs in CI** as part of the libFuzzer-smoke job, with
-  `-timeout_exitcode=0` so Turing-complete inputs that exhaust the
-  per-input wall budget don't fail the build, while real ASan /
-  UBSan / OOM / assertion findings still do. Closes the gap that
-  fuzz_eval was buildable but never invoked in CI.
+  `-timeout_exitcode=0` plus a wall-time + RSS envelope and a shell
+  wrapper that treats `libFuzzer: out-of-memory` / `libFuzzer:
+  timeout` as non-failures. Real ASan / UBSan / assertion findings
+  still propagate. The wrapper exists because the evaluator is
+  Turing-complete: a fuzzer-generated `(define (loop) (loop)) (loop)`
+  legitimately exceeds any per-input budget, and the only valid
+  CI signal for that is "the input finished cleanly OR hit the
+  documented envelope" -- not "the input is a bug."
+- **`fuzz_read` harness now drives the reader directly** (via
+  internal `ml_read`) instead of going through `microlisp_eval`.
+  The reader is non-Turing-complete -- its runtime is bounded by
+  input size -- so any timeout or OOM in fuzz_read is now a real
+  bug worth investigating.
 - **Eight new fuzz seeds** covering tail-call accumulator loops,
   letrec mutual recursion, closure-captured state, cond chains,
   short-circuit and/or, string-escape edge cases, dotted-pair
@@ -36,6 +59,8 @@ coverage ratchet) is held for 0.2.
   `define (`, `(if `, `(let ((`, `(letrec ((`, `(cond (`, ` . `,
   ` else`, `()`, ` `, `#t`, `#f`) so the mutator splices format-
   aware tokens into inputs more aggressively.
+- **`gc_mark_walks_long_list_iteratively`** unit test pins the GC
+  regression: a 100 000-element list survives a mark cycle.
 
 ## [0.1.0] - 2026-05-16
 

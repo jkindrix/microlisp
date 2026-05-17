@@ -385,6 +385,17 @@ TEST(tail_call_optimization) {
                       "done"));
 }
 
+TEST(gc_mark_walks_long_list_iteratively) {
+    /* A 100k-element list lives on the heap as 100k cons cells. If
+     * mark were still recursive, the GC's collect-during-allocation
+     * would blow the C stack walking it (regression caught by
+     * fuzz_read in v0.1.0). The iterative worklist mark survives. */
+    CHECK(eval_equals("(define (loop n acc)"
+                      "  (if (= n 0) acc (loop (- n 1) (cons n acc))))"
+                      "(length (loop 100000 (quote ())))",
+                      "100000"));
+}
+
 TEST(gc_stress_via_allocations) {
     /* Build and discard many cons cells; the GC must reclaim them and
      * the live root (the accumulating list) must survive every cycle.
@@ -577,6 +588,7 @@ int main(void) {
     RUN(unbound_variable);
     RUN(user_error_primitive);
     RUN(tail_call_optimization);
+    RUN(gc_mark_walks_long_list_iteratively);
     RUN(gc_stress_via_allocations);
     RUN(eval_depth_limit_rejects_deep_non_tail_recursion);
     RUN(gc_keeps_closure_captures_alive);

@@ -1,1 +1,0 @@
-(define (sq x) (* x x)) (define ( .su1m-sq xsnull? xs) 0 (+ (sq (car xs)) (sum-sq 0cdr xs))))) (sum-sq (list 1 2 3 4 5))

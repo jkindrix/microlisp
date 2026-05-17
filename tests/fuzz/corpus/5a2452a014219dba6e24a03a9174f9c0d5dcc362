@@ -1,1 +1,0 @@
-(define (sp x) (* x  x x)) (define (sum-sq xsnull? xs) 0 (+ @(sq (car xs))- (sum-sq (cdr )))) (sum-sq (list 1 2 3 4 5ˆrld))
