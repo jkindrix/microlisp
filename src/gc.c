@@ -23,6 +23,7 @@
 
 #include "microlisp_internal.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,6 +58,17 @@ static void maybe_collect(ml_state *s) {
 }
 
 static void link_object(ml_state *s, mobj *o) {
+    /* Every heap object's pointer must have the low 3 bits clear, since
+     * tagged values pack the type code there. state_create checks the
+     * very first allocation; this assert catches a misbehaving arena
+     * that aligns its first block correctly but later returns
+     * weaker-aligned ones (a pre-mortem risk noted by the v0.1.4 cold
+     * review). Compiled out in Release; an embedder whose arena
+     * violates the contract sees the failure under any sanitizer or
+     * debug build. */
+    assert(((uintptr_t)o & (uintptr_t)0x7U) == 0U &&
+           "microlisp_allocator returned a misaligned block; alloc must "
+           "return pointers aligned to >= 8 bytes (see microlisp.h)");
     o->next = s->gc_head;
     s->gc_head = o;
     s->gc_live_objects++;

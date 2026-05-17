@@ -14,6 +14,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+## [0.1.5] - 2026-05-16
+
+Fifth post-release iteration. First cold review with **zero hard
+findings** (9.0/10, "extraordinary by §1.3"). The two pre-mortem
+suggestions worth landing got landed; the third (native MSVC
+support) stays on the v0.2 roadmap as previously documented.
+
+### Added
+
+- **Per-block alignment assertion in the GC link path** (debug
+  builds; compiled out in Release). `state_create` already
+  checked the alignment of the very first allocation, but a
+  custom arena could legitimately align block 1 to 8 and later
+  blocks to 4, silently corrupting tagged values on the next GC.
+  The assert in `link_object` fires on every heap-object
+  allocation; under ASan / UBSan / Debug it catches the
+  contract violation immediately rather than waiting for a
+  collection to walk into the bad pointer.
+
+### Changed
+
+- **`microlisp_buffer_free` Doxygen block** now spells out the
+  lifetime contract: the buffer must be released **before** the
+  state that produced it is destroyed. Calling `buffer_free`
+  with an already-destroyed state is undefined; the conventional
+  pattern (eval → consume → buffer_free → destroy) is now
+  documented inline.
+
 ## [0.1.4] - 2026-05-16
 
 Fourth post-release iteration. Five findings from a fresh cold
@@ -259,7 +287,8 @@ production-grade scaffolding as the rest of the trajectory.
   `.gitattributes`, pre-commit format hook, `scripts/format.sh` /
   `lint.sh` / `coverage.sh` / `install-hooks.sh`.
 
-[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/jkindrix/microlisp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/jkindrix/microlisp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/jkindrix/microlisp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jkindrix/microlisp/compare/v0.1.1...v0.1.2

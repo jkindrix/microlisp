@@ -331,6 +331,16 @@ MICROLISP_API MICROLISP_NODISCARD microlisp_status microlisp_repl(microlisp_stat
  * Free a buffer previously returned by ::microlisp_eval via
  * @p out_bytes . NULL is a no-op.
  *
+ * @par Lifetime:
+ *      The buffer is allocated by @p state's allocator and must be
+ *      released **before** the state is destroyed. Calling
+ *      ::microlisp_buffer_free with a state that has already been
+ *      passed to ::microlisp_state_destroy is undefined behavior; the
+ *      allocator's @c free is no longer reachable through the freed
+ *      state. The conventional pattern is: eval, consume the result,
+ *      buffer_free, then destroy the state once you're done with all
+ *      its outputs.
+ *
  * @param state  The state that produced the buffer; the same allocator
  *               must be used to free it.
  * @param bytes  Buffer pointer.
