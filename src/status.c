@@ -42,6 +42,8 @@ const char *microlisp_status_string(microlisp_status status) {
         return "MICROLISP_ERR_SYNTAX";
     case MICROLISP_ERR_EVAL_DEPTH:
         return "MICROLISP_ERR_EVAL_DEPTH";
+    case MICROLISP_ERR_PRINT_DEPTH:
+        return "MICROLISP_ERR_PRINT_DEPTH";
     default:
         return "MICROLISP_ERR_UNKNOWN";
     }

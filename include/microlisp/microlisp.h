@@ -124,7 +124,16 @@ typedef enum microlisp_status {
      *  by deep non-tail-recursive Scheme code; tail-recursive code
      *  runs in constant C-stack space regardless of depth. Limits
      *  blast radius from untrusted input. */
-    MICROLISP_ERR_EVAL_DEPTH = 14
+    MICROLISP_ERR_EVAL_DEPTH = 14,
+
+    /** Printer recursion depth exceeded the configured limit. Caused
+     *  by deeply-nested-list output (e.g. an accumulator chain like
+     *  `(nest n acc) -> (nest (- n 1) (list acc))` produces a list
+     *  of depth N in the car direction). The printer walks pair-car
+     *  chains recursively; this guard keeps the host C stack
+     *  bounded. v0.2 will replace the recursive walker with an
+     *  iterative one and lift the limit. */
+    MICROLISP_ERR_PRINT_DEPTH = 15
 } microlisp_status;
 
 /** Opaque interpreter state. Construct with ::microlisp_state_create
@@ -161,6 +170,9 @@ typedef struct microlisp_allocator {
 /** Default value for ::microlisp_options::max_eval_depth. */
 #define MICROLISP_DEFAULT_MAX_EVAL_DEPTH 1024
 
+/** Default value for ::microlisp_options::max_print_depth. */
+#define MICROLISP_DEFAULT_MAX_PRINT_DEPTH 1024
+
 /**
  * Options controlling a state. Zero-initialize to use defaults; pass
  * NULL to ::microlisp_state_create for "all defaults."
@@ -181,6 +193,14 @@ typedef struct microlisp_options {
      *  the host C stack. Forms that exceed it fail with
      *  ::MICROLISP_ERR_EVAL_DEPTH. */
     size_t max_eval_depth;
+
+    /** Maximum printer pair-walk depth. 0 means
+     *  ::MICROLISP_DEFAULT_MAX_PRINT_DEPTH. Output of trees deeper
+     *  than this fails with ::MICROLISP_ERR_PRINT_DEPTH instead of
+     *  exhausting the host C stack. v0.1's printer is recursive on
+     *  the pair-car axis; the limit bounds the worst case until
+     *  v0.2's iterative printer lands. */
+    size_t max_print_depth;
 
     /** Hard ceiling on heap objects between GC collections. 0 means
      *  "use the built-in default" (currently 4096 objects, doubling

@@ -124,6 +124,8 @@ static microlisp_status emit_string_quoted(ml_out_fn out, void *user, const uint
 
 static microlisp_status print_value(ml_state *s, mvalue v, int write_style, ml_out_fn out,
                                     void *user);
+static microlisp_status print_value_inner(ml_state *s, mvalue v, int write_style, ml_out_fn out,
+                                          void *user);
 
 static microlisp_status print_pair_contents(ml_state *s, mvalue v, int write_style, ml_out_fn out,
                                             void *user) {
@@ -159,6 +161,23 @@ static microlisp_status print_pair_contents(ml_state *s, mvalue v, int write_sty
 
 static microlisp_status print_value(ml_state *s, mvalue v, int write_style, ml_out_fn out,
                                     void *user) {
+    /* Bound the pair-car recursion. Only pairs and the print_pair_contents
+     * trampoline through here repeatedly; atoms cost one frame. The check
+     * is on every call so cyclic structures (a user-built pair whose car
+     * eventually closes back to itself) also trip the limit instead of
+     * recursing forever. */
+    if (s->print_depth >= s->max_print_depth) {
+        ml_set_error(s, 0, 0, "print recursion depth exceeded limit of %zu", s->max_print_depth);
+        return MICROLISP_ERR_PRINT_DEPTH;
+    }
+    s->print_depth++;
+    microlisp_status _st = print_value_inner(s, v, write_style, out, user);
+    s->print_depth--;
+    return _st;
+}
+
+static microlisp_status print_value_inner(ml_state *s, mvalue v, int write_style, ml_out_fn out,
+                                          void *user) {
     if (ml_is_fix(v)) {
         return emit_int(out, user, ml_fix_int(v));
     }

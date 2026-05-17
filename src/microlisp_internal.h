@@ -330,6 +330,14 @@ struct microlisp_state {
     size_t max_eval_depth;
     size_t eval_depth;
 
+    /* Printer depth limiter: same shape as eval-depth. print_value
+     * increments on every recursive pair-car descent and bails with
+     * MICROLISP_ERR_PRINT_DEPTH if the limit is exceeded. v0.2 will
+     * replace the recursive walker with an explicit-stack BFS in
+     * the spirit of the GC mark fix in v0.1.1. */
+    size_t max_print_depth;
+    size_t print_depth;
+
     /* Last error --------------------------------------------------------- */
     ml_error last_error;
 };

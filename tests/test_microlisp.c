@@ -385,6 +385,24 @@ TEST(lone_quote_rejected) {
     CHECK(eval_fails_with("(list 1 ')", MICROLISP_ERR_READ_SYNTAX));
 }
 
+TEST(print_depth_limit_rejects_deep_nesting) {
+    /* `(nest n acc) -> (nest (- n 1) (list acc))` builds a list of
+     * depth N in the car direction. Evaluation is tail-recursive
+     * and finishes; pre-0.1.3 the recursive printer then blew the
+     * C stack trying to render the result. Now the printer caps
+     * at MICROLISP_DEFAULT_MAX_PRINT_DEPTH=1024 and reports a
+     * controlled error rather than SEGFAULTing. */
+    CHECK(eval_fails_with("(define (nest n acc)"
+                          "  (if (= n 0) acc (nest (- n 1) (list acc))))"
+                          "(nest 200000 (quote ()))",
+                          MICROLISP_ERR_PRINT_DEPTH));
+    /* Depths just under the cap still print successfully. */
+    CHECK(eval_equals("(define (nest n acc)"
+                      "  (if (= n 0) acc (nest (- n 1) (list acc))))"
+                      "(length (nest 500 (quote ())))",
+                      "1"));
+}
+
 TEST(let_bindings_reject_extra_cells) {
     /* `(let ((x 1 2)) x)` previously returned 1 because the validator
      * stopped at the second cell of the binding. */
@@ -564,6 +582,7 @@ TEST(status_string_for_every_code) {
         MICROLISP_ERR_IO,
         MICROLISP_ERR_SYNTAX,
         MICROLISP_ERR_EVAL_DEPTH,
+        MICROLISP_ERR_PRINT_DEPTH,
     };
     for (size_t i = 0; i < sizeof codes / sizeof codes[0]; i++) {
         const char *s = microlisp_status_string(codes[i]);
@@ -625,6 +644,7 @@ int main(void) {
     RUN(division_at_fixnum_min_overflows);
     RUN(lone_quote_rejected);
     RUN(let_bindings_reject_extra_cells);
+    RUN(print_depth_limit_rejects_deep_nesting);
     RUN(type_errors);
     RUN(unbound_variable);
     RUN(user_error_primitive);

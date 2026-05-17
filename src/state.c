@@ -144,6 +144,9 @@ microlisp_status microlisp_state_create(const microlisp_options *opts,
     s->max_eval_depth = (opts != NULL && opts->max_eval_depth != 0)
                             ? opts->max_eval_depth
                             : MICROLISP_DEFAULT_MAX_EVAL_DEPTH;
+    s->max_print_depth = (opts != NULL && opts->max_print_depth != 0)
+                             ? opts->max_print_depth
+                             : MICROLISP_DEFAULT_MAX_PRINT_DEPTH;
     s->gc_threshold =
         (opts != NULL && opts->gc_initial_threshold != 0) ? opts->gc_initial_threshold : 4096;
 

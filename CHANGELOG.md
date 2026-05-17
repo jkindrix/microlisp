@@ -14,6 +14,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+## [0.1.3] - 2026-05-16
+
+Third post-release iteration. Same cold reviewer as round 2, after
+re-running on 0.1.2; two new findings landed.
+
+### Added
+
+- **`MICROLISP_ERR_PRINT_DEPTH` + `microlisp_options::max_print_depth`**
+  (default `MICROLISP_DEFAULT_MAX_PRINT_DEPTH = 1024`). The v0.1.x
+  printer walks pair-car chains recursively; deeply-nested but
+  finite output (e.g. an accumulator chain `(nest n acc) -> (nest
+  (- n 1) (list acc))`) used to exhaust the C stack and SEGFAULT
+  even though evaluation finished cleanly. The printer now bails
+  with a controlled error once the cap is reached. v0.2 will
+  replace the recursive walker with an iterative one and lift the
+  limit (and pick up `equal?` while it's there).
+
+### Fixed
+
+- **Deeply-nested-list output no longer crashes the interpreter.**
+  Caught by the second cold review against a 200 000-element
+  car-chain. Regression test added; ASan-confirmed clean.
+
+### Changed
+
+- **SECURITY.md updated to reflect that `fuzz_eval` runs in CI**
+  (which it has since v0.1.1). The previous text said the harness
+  was buildable-but-not-CI-wired; now it correctly describes both
+  harnesses, the `fuzz_read` / `fuzz_eval` split, and the shell
+  wrapper that maps libFuzzer OOM/timeout to non-failures for
+  the Turing-complete `fuzz_eval` job.
+
 ## [0.1.2] - 2026-05-16
 
 Second post-release iteration. Five findings from a second cold
@@ -180,7 +212,8 @@ production-grade scaffolding as the rest of the trajectory.
   `.gitattributes`, pre-commit format hook, `scripts/format.sh` /
   `lint.sh` / `coverage.sh` / `install-hooks.sh`.
 
-[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/jkindrix/microlisp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jkindrix/microlisp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jkindrix/microlisp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jkindrix/microlisp/releases/tag/v0.1.0

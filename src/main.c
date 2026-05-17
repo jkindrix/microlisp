@@ -123,6 +123,7 @@ static int exit_code_for(microlisp_status st) {
     case MICROLISP_ERR_USER:
     case MICROLISP_ERR_SYNTAX:
     case MICROLISP_ERR_EVAL_DEPTH:
+    case MICROLISP_ERR_PRINT_DEPTH:
         return 1;
     default:
         return 1;

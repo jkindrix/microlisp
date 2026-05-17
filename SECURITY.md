@@ -69,9 +69,13 @@ Link-time (Linux executables):
 
 CI exercises every change under AddressSanitizer + UndefinedBehaviorSanitizer,
 ThreadSanitizer, and MemorySanitizer (each in its own job, with
-`halt_on_error=1` and `detect_leaks=1` where applicable). A libFuzzer
-harness (`fuzz_read`) exercises the reader on every push with a seed
-corpus and token dictionary; a second harness (`fuzz_eval`) is
-buildable for local exploration but not run in CI smoke (Turing-complete
-inputs can legitimately exceed any per-input timeout). CodeQL's
-`security-and-quality` query suite runs weekly plus on every push/PR.
+`halt_on_error=1` and `detect_leaks=1` where applicable). Two libFuzzer
+harnesses run on every push: `fuzz_read` exercises the reader (driving
+`ml_read` directly; non-Turing-complete, so any timeout or OOM there
+is a real bug worth investigating) and `fuzz_eval` exercises the full
+evaluator (with a shell-level wrapper that maps `libFuzzer:
+out-of-memory` and `libFuzzer: timeout` to non-failures while letting
+real ASan / UBSan / assertion findings propagate, since the evaluator
+is Turing-complete). Both harnesses use a seed corpus and a token
+dictionary. CodeQL's `security-and-quality` query suite runs weekly
+plus on every push/PR.
