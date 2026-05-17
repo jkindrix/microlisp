@@ -402,13 +402,18 @@ TEST(repl_routes_output_to_out_file) {
     /* `(display ...)` / `(newline)` should write to the FILE * passed
      * to microlisp_repl, not directly to stdout. Pre-0.1.4 the
      * primitives wrote unconditionally to stdout, violating the API
-     * contract. */
+     * contract. Uses tmpfile() for both streams -- portable across
+     * Linux/macOS/MinGW unlike fmemopen. */
     microlisp_state *s = NULL;
     REQUIRE(microlisp_state_create(NULL, &s) == MICROLISP_OK);
 
-    char in_buf[] = "(display \"routed\") (newline)\n";
-    FILE *in = fmemopen(in_buf, sizeof in_buf - 1, "r");
+    FILE *in = tmpfile();
     REQUIRE(in != NULL);
+    const char *script = "(display \"routed\") (newline)\n";
+    size_t script_len = strlen(script);
+    REQUIRE(fwrite(script, 1, script_len, in) == script_len);
+    REQUIRE(fseek(in, 0, SEEK_SET) == 0);
+
     FILE *out = tmpfile();
     REQUIRE(out != NULL);
 
@@ -416,7 +421,7 @@ TEST(repl_routes_output_to_out_file) {
     CHECK(st == MICROLISP_OK);
 
     fflush(out);
-    rewind(out);
+    REQUIRE(fseek(out, 0, SEEK_SET) == 0);
     char captured[64] = {0};
     size_t got = fread(captured, 1, sizeof captured - 1, out);
     captured[got] = '\0';
