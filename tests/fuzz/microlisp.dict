@@ -70,3 +70,17 @@
 "\\n"
 "\\x00"
 "\\\""
+
+# Common idiomatic fragments
+" "
+"()"
+"#t"
+"#f"
+"lambda ("
+"define ("
+"(if "
+"(let (("
+"(letrec (("
+"(cond ("
+" else"
+" . "

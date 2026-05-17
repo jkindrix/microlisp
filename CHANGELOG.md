@@ -14,6 +14,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+## [0.1.1] - 2026-05-16
+
+First post-release iteration. Picks up the highest-ROI items from the
+v0.1.0 cold review; the heavier roadmap (`microlisp_state_interrupt`,
+the value-level C API, hygienic macros, NOMEM fault injection,
+coverage ratchet) is held for 0.2.
+
+### Added
+
+- **`fuzz_eval` runs in CI** as part of the libFuzzer-smoke job, with
+  `-timeout_exitcode=0` so Turing-complete inputs that exhaust the
+  per-input wall budget don't fail the build, while real ASan /
+  UBSan / OOM / assertion findings still do. Closes the gap that
+  fuzz_eval was buildable but never invoked in CI.
+- **Eight new fuzz seeds** covering tail-call accumulator loops,
+  letrec mutual recursion, closure-captured state, cond chains,
+  short-circuit and/or, string-escape edge cases, dotted-pair
+  alists, and a higher-order sum-of-squares fold.
+- **Twelve new entries in the libFuzzer dictionary** (`lambda (`,
+  `define (`, `(if `, `(let ((`, `(letrec ((`, `(cond (`, ` . `,
+  ` else`, `()`, ` `, `#t`, `#f`) so the mutator splices format-
+  aware tokens into inputs more aggressively.
+
 ## [0.1.0] - 2026-05-16
 
 Initial public release. A small Scheme-subset interpreter with
@@ -95,5 +118,6 @@ production-grade scaffolding as the rest of the trajectory.
   `.gitattributes`, pre-commit format hook, `scripts/format.sh` /
   `lint.sh` / `coverage.sh` / `install-hooks.sh`.
 
-[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jkindrix/microlisp/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jkindrix/microlisp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jkindrix/microlisp/releases/tag/v0.1.0

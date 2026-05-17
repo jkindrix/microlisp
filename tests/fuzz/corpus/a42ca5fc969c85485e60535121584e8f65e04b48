@@ -1,0 +1,1 @@
+(cond ((= 1 2) (quote a)) ((eq? (quote x) (quote 'x)) (quote yes)) (else (quote z)))

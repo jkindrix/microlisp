@@ -1,0 +1,1 @@
+(cond ((= 1 2) (quote a)) ((eq? @)z e)o)

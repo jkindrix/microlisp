@@ -1,0 +1,1 @@
+(letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o (lambda (n) (if (= n 0) #f (edisplay)))))) (e 100))

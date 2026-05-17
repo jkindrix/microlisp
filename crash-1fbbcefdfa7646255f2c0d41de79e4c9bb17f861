@@ -1,0 +1,1 @@
+(define (loop n acc) (if (= n 0) acc (loop (- n 0) (cons n acc)))) (length (loop 7270 (quote ())))

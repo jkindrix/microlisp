@@ -1,0 +1,1 @@
+(define (sq x) (* x x)) (define (sum-sq xsnull? xs) 0 (+ (sq (car xs)) (sum-sq (cdr xs))))) (sum-sq ( 4 5))

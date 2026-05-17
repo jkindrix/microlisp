@@ -181,15 +181,23 @@ jobs:
         run: cmake -S . -B build/fuzz -G Ninja -DCMAKE_BUILD_TYPE=Debug -DMICROLISP_BUILD_FUZZERS=ON
       - name: Build fuzz targets
         run: cmake --build build/fuzz --target fuzz_read fuzz_eval
-      # Only fuzz_read runs in the CI smoke. fuzz_eval can legitimately
-      # time out on Turing-complete inputs (the reader can't, so any
-      # fuzz_read timeout is a real bug); a richer triaged fuzz_eval
-      # run belongs in a scheduled nightly that's outside v0.1 scope.
       - name: Run fuzz_read (with seed corpus + dictionary)
+        # Reader is non-Turing-complete; any timeout is a real bug.
         run: |
           ./build/fuzz/tests/fuzz/fuzz_read tests/fuzz/corpus \
               -dict=tests/fuzz/microlisp.dict \
               -max_total_time=20 -print_final_stats=1
+      - name: Run fuzz_eval (with seed corpus + dictionary)
+        # Evaluator IS Turing-complete: a fuzzer-generated `(define (loop) (loop)) (loop)`
+        # legitimately exceeds any per-input wall budget. -timeout_exitcode=0
+        # tells libFuzzer to treat such timeouts as non-failures so CI doesn't
+        # red on input-driven infinite loops. Real ASan / UBSan / OOM /
+        # assertion findings still flip the default error_exitcode=77.
+        run: |
+          ./build/fuzz/tests/fuzz/fuzz_eval tests/fuzz/corpus \
+              -dict=tests/fuzz/microlisp.dict \
+              -max_total_time=25 -timeout=4 -timeout_exitcode=0 \
+              -print_final_stats=1
 
   docs:
     name: Doxygen
