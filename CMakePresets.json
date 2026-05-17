@@ -1,0 +1,90 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "displayName": "Debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "relwithdebinfo",
+      "inherits": "base",
+      "displayName": "RelWithDebInfo",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "asan",
+      "inherits": "base",
+      "displayName": "Debug + ASan + UBSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MICROLISP_ENABLE_ASAN": "ON",
+        "MICROLISP_ENABLE_UBSAN": "ON"
+      }
+    },
+    {
+      "name": "tsan",
+      "inherits": "base",
+      "displayName": "Debug + TSan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MICROLISP_ENABLE_TSAN": "ON"
+      }
+    },
+    {
+      "name": "msan",
+      "inherits": "base",
+      "displayName": "Debug + MSan (Clang only)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MICROLISP_ENABLE_MSAN": "ON"
+      }
+    },
+    {
+      "name": "coverage",
+      "inherits": "base",
+      "displayName": "Debug + Coverage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MICROLISP_ENABLE_COVERAGE": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug",          "configurePreset": "debug" },
+    { "name": "release",        "configurePreset": "release" },
+    { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
+    { "name": "asan",           "configurePreset": "asan" },
+    { "name": "tsan",           "configurePreset": "tsan" },
+    { "name": "msan",           "configurePreset": "msan" },
+    { "name": "coverage",       "configurePreset": "coverage" }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "stopOnFailure": false }
+    },
+    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } },
+    { "name": "tsan", "configurePreset": "tsan", "output": { "outputOnFailure": true } },
+    { "name": "msan", "configurePreset": "msan", "output": { "outputOnFailure": true } }
+  ]
+}

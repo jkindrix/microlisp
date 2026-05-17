@@ -1,0 +1,72 @@
+# libFuzzer dictionary: literal tokens the reader emits.
+# Used by the mutator to splice into inputs so format-aware paths
+# get hit an order of magnitude faster than byte-level mutation.
+
+# Punctuation
+"("
+")"
+"'"
+"."
+"\""
+";"
+
+# Constants
+"#t"
+"#f"
+
+# Special-form keywords
+"quote"
+"if"
+"define"
+"lambda"
+"set!"
+"let"
+"let*"
+"letrec"
+"begin"
+"and"
+"or"
+"cond"
+"else"
+
+# Built-in primitives
+"+"
+"-"
+"*"
+"/"
+"="
+"<"
+">"
+"<="
+">="
+"quotient"
+"remainder"
+"modulo"
+"cons"
+"car"
+"cdr"
+"list"
+"length"
+"null?"
+"pair?"
+"number?"
+"symbol?"
+"string?"
+"procedure?"
+"boolean?"
+"eq?"
+"eqv?"
+"equal?"
+"not"
+"display"
+"write"
+"newline"
+"error"
+
+# Useful boundary literals
+"0"
+"1"
+"-1"
+"\\n"
+"\\x00"
+"\\\""

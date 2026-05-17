@@ -1,0 +1,27 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Attach
+PointerAlignment: Right
+SpaceBeforeParens: ControlStatements
+IncludeBlocks: Regroup
+SortIncludes: true
+IncludeCategories:
+  - Regex:    '^"microlisp/'
+    Priority: 1
+  - Regex:    '^".*"'
+    Priority: 2
+  - Regex:    '^<.*\.h>'
+    Priority: 3
+  - Regex:    '.*'
+    Priority: 4

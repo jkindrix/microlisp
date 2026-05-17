@@ -1,0 +1,18 @@
+PROJECT_NAME           = "microlisp"
+PROJECT_NUMBER         = 0.1.0
+PROJECT_BRIEF          = "A small Scheme-subset interpreter in modern C."
+OUTPUT_DIRECTORY       = docs
+INPUT                  = include src README.md CONTRIBUTING.md \
+                         CODE_OF_CONDUCT.md SECURITY.md SUPPORT.md CHANGELOG.md
+FILE_PATTERNS          = *.h *.c *.md
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+GENERATE_LATEX         = NO
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+USE_MDFILE_AS_MAINPAGE = README.md
+QUIET                  = YES
+WARN_AS_ERROR          = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+JAVADOC_AUTOBRIEF      = YES

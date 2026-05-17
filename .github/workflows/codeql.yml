@@ -1,0 +1,43 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (C)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9e0d7b8d25671d64c341c19c0152d693099fb5ba  # v4
+        with:
+          languages: c
+          build-mode: manual
+          queries: security-and-quality
+
+      # -Werror intentionally disabled: a future CodeQL instrumentation
+      # pass producing a benign warning shouldn't mask the analyzer's
+      # findings. Warning gating is the lint job's responsibility.
+      - name: Build
+        run: |
+          cmake -S . -B build/codeql -G Ninja \
+                -DCMAKE_BUILD_TYPE=Debug \
+                -DMICROLISP_WARNINGS_AS_ERRORS=OFF
+          cmake --build build/codeql -j
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@9e0d7b8d25671d64c341c19c0152d693099fb5ba  # v4
+        with:
+          category: "/language:c"

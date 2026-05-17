@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security advisory
+    url: https://github.com/jkindrix/microlisp/security/advisories/new
+    about: Do not file security issues in the public tracker. Use a private advisory.
+  - name: Usage questions and design discussion
+    url: https://github.com/jkindrix/microlisp/discussions
+    about: How-to and design questions belong in Discussions, not the issue tracker.
+  - name: Getting help
+    url: https://github.com/jkindrix/microlisp/blob/main/SUPPORT.md
+    about: Quick guide to which channel fits which kind of question.

@@ -1,0 +1,12 @@
+# Default reviewer for every change.
+*                          @jkindrix
+
+# Build & CI changes carry blast radius.
+/CMakeLists.txt            @jkindrix
+/CMakePresets.json         @jkindrix
+/cmake/                    @jkindrix
+/.github/workflows/        @jkindrix
+
+# Security-sensitive surfaces.
+/SECURITY.md               @jkindrix
+/include/microlisp/        @jkindrix

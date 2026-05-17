@@ -1,0 +1,236 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: ${{ matrix.os }} / ${{ matrix.compiler }} / ${{ matrix.preset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        compiler: [gcc, clang, msvc]
+        preset: [debug, release]
+        exclude:
+          - os: windows-latest
+            compiler: gcc
+          - os: windows-latest
+            compiler: clang
+          - os: macos-latest
+            compiler: gcc
+          - os: macos-latest
+            compiler: msvc
+          - os: ubuntu-latest
+            compiler: msvc
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Configure compiler (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            echo "CC=clang" >> "$GITHUB_ENV"
+          else
+            echo "CC=gcc" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install clang + sanitizer runtimes
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - run: cmake --preset asan
+        env:
+          CC: clang
+      - run: cmake --build --preset asan
+      - run: ctest --preset asan
+
+  msan:
+    name: MemorySanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install clang + sanitizer runtimes
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - run: cmake --preset msan
+        env:
+          CC: clang
+      - run: cmake --build --preset msan
+      - run: ctest --test-dir build/msan --output-on-failure
+
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install clang + sanitizer runtimes
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - run: cmake --preset tsan
+        env:
+          CC: clang
+      - run: cmake --build --preset tsan
+      - run: ctest --test-dir build/tsan --output-on-failure
+
+  lint:
+    name: clang-format + clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy ninja-build
+      - name: clang-format (check)
+        run: |
+          find include src tests examples -name '*.c' -o -name '*.h' \
+            | xargs clang-format --dry-run --Werror
+      - name: Configure
+        run: cmake --preset debug
+      - name: clang-tidy
+        # --extra-arg-before=-Wno-unknown-warning-option silences clang-tidy's
+        # objection to GCC-only flags in compile_commands.json.
+        run: |
+          find src tests examples -name '*.c' \
+            | xargs clang-tidy -p build/debug \
+                --extra-arg-before=-Wno-unknown-warning-option \
+                --warnings-as-errors=*
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+      - run: cmake --preset coverage
+      - run: cmake --build --preset coverage
+      - run: ctest --test-dir build/coverage --output-on-failure
+      - name: Collect + enforce coverage
+        env:
+          MIN_LINE_COVERAGE: '75'
+        run: scripts/coverage.sh build/coverage
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: coverage-report
+          path: build/coverage/coverage.info
+
+  shared-build:
+    name: Shared library + symbol-export check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Configure shared
+        run: |
+          cmake -S . -B build/shared -G Ninja \
+                -DBUILD_SHARED_LIBS=ON \
+                -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build/shared
+      - name: Test (includes symbol_export_check + negative)
+        run: ctest --test-dir build/shared --output-on-failure
+
+  install-consumer:
+    name: Install + downstream find_package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Configure + build microlisp
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+      - name: Install to staging prefix
+        run: cmake --install build/release --prefix "$RUNNER_TEMP/prefix"
+      - name: Verify pkg-config metadata
+        run: |
+          PKG_CONFIG_PATH="$RUNNER_TEMP/prefix/lib/pkgconfig" pkg-config --modversion microlisp
+          PKG_CONFIG_PATH="$RUNNER_TEMP/prefix/lib/pkgconfig" pkg-config --cflags --libs microlisp
+      - name: Build downstream consumer
+        run: |
+          cmake -S tests/consumer -B "$RUNNER_TEMP/consumer-build" -G Ninja \
+            -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/prefix"
+          cmake --build "$RUNNER_TEMP/consumer-build"
+      - name: Run downstream consumer tests
+        run: ctest --test-dir "$RUNNER_TEMP/consumer-build" --output-on-failure
+
+  fuzz:
+    name: libFuzzer smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install clang + sanitizer runtimes
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - name: Configure with fuzzers
+        env:
+          CC: clang
+        run: cmake -S . -B build/fuzz -G Ninja -DCMAKE_BUILD_TYPE=Debug -DMICROLISP_BUILD_FUZZERS=ON
+      - name: Build fuzz targets
+        run: cmake --build build/fuzz --target fuzz_read fuzz_eval
+      # Only fuzz_read runs in the CI smoke. fuzz_eval can legitimately
+      # time out on Turing-complete inputs (the reader can't, so any
+      # fuzz_read timeout is a real bug); a richer triaged fuzz_eval
+      # run belongs in a scheduled nightly that's outside v0.1 scope.
+      - name: Run fuzz_read (with seed corpus + dictionary)
+        run: |
+          ./build/fuzz/tests/fuzz/fuzz_read tests/fuzz/corpus \
+              -dict=tests/fuzz/microlisp.dict \
+              -max_total_time=20 -print_final_stats=1
+
+  docs:
+    name: Doxygen
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+      - name: Build docs
+        run: doxygen docs/Doxyfile
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: api-docs
+          path: docs/html
+
+  pages:
+    name: Deploy Doxygen to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+      - name: Build docs
+        run: doxygen docs/Doxyfile
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d  # v6
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5
+        with:
+          path: docs/html
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128  # v5

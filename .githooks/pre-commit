@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-commit hook: clang-format check on staged C sources.
+# Install with `scripts/install-hooks.sh`.
+set -euo pipefail
+
+if ! command -v clang-format >/dev/null 2>&1; then
+    echo "pre-commit: clang-format not found in PATH; skipping format check" >&2
+    exit 0
+fi
+
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACMR \
+    -- '*.c' '*.h' 2>/dev/null || true)
+
+if [ "${#staged[@]}" -eq 0 ]; then
+    exit 0
+fi
+
+if ! clang-format --dry-run --Werror "${staged[@]}"; then
+    cat >&2 <<'EOF'
+
+pre-commit: clang-format found unformatted code in staged changes.
+Run `scripts/format.sh` (or `clang-format -i <file>...`) and re-stage.
+EOF
+    exit 1
+fi
